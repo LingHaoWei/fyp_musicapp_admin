@@ -1,0 +1,11 @@
+{
+  "AppSyncApiName": "fypmusicappadmin",
+  "DynamoDBBillingMode": "PAY_PER_REQUEST",
+  "DynamoDBEnableServerSideEncryption": false,
+  "AuthCognitoUserPoolId": {
+    "Fn::GetAtt": [
+      "authfypmusicappadminb24087ba",
+      "Outputs.UserPoolId"
+    ]
+  }
+}
