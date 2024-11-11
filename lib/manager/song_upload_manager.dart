@@ -1,10 +1,10 @@
 import 'dart:math';
-import 'dart:typed_data';
+// import 'dart:typed_data';
 import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'package:flutter/material.dart';
-import 'dart:io';
+// import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:uuid/uuid.dart';
@@ -191,34 +191,7 @@ class _SongUploadManagerState extends State<SongUploadManager> {
   }
 
   // Upload file to S3 using Amplify Storage
-  Future<void> _uploadToS3(SongUpload song) async {
-    try {
-      final options = StorageUploadFileOptions(
-        //accessLevel: StorageAccessLevel.private,
-        metadata: {
-          'contentType': 'audio/${song.platformFile.extension}',
-          'title': song.metadata.title,
-          'artist': song.metadata.artist,
-        },
-      );
-
-      final uploadResult = await Amplify.Storage.uploadData(
-        key: song.metadata.s3Key,
-        data: StorageData.fromBytes(song.platformFile.bytes!),
-        options: options,
-      ).result;
-
-      // Monitor upload progress
-      await for (final event in uploadResult.uploadProgress) {
-        setState(() {
-          song.progress = (event.getFractionCompleted() * 100);
-        });
-      }
-    } catch (e) {
-      debugPrint('S3 upload error: $e');
-      rethrow;
-    }
-  }
+  Future<void> _uploadToS3(SongUpload song) async {}
 
   // Store metadata using AppSync/GraphQL API
   Future<void> _storeMetadata(SongMetadata metadata) async {
