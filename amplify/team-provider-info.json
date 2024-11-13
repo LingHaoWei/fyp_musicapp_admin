@@ -1,0 +1,23 @@
+{
+  "dev": {
+    "awscloudformation": {
+      "AuthRoleName": "amplify-fypmusicappadmin-dev-2489a-authRole",
+      "UnauthRoleArn": "arn:aws:iam::390403855136:role/amplify-fypmusicappadmin-dev-2489a-unauthRole",
+      "AuthRoleArn": "arn:aws:iam::390403855136:role/amplify-fypmusicappadmin-dev-2489a-authRole",
+      "Region": "ap-southeast-2",
+      "DeploymentBucketName": "amplify-fypmusicappadmin-dev-2489a-deployment",
+      "UnauthRoleName": "amplify-fypmusicappadmin-dev-2489a-unauthRole",
+      "StackName": "amplify-fypmusicappadmin-dev-2489a",
+      "StackId": "arn:aws:cloudformation:ap-southeast-2:390403855136:stack/amplify-fypmusicappadmin-dev-2489a/c0828730-a19a-11ef-ae7e-0644e93f845d",
+      "AmplifyAppId": "d32oh2x70frrax"
+    },
+    "categories": {
+      "auth": {
+        "fypmusicappadmin77780a6d": {}
+      },
+      "api": {
+        "fypmusicappadmin": {}
+      }
+    }
+  }
+}

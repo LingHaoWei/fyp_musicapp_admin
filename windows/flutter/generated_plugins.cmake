@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   amplify_db_common
   audiotags
   connectivity_plus
+  metadata_god
   url_launcher_windows
 )
 
