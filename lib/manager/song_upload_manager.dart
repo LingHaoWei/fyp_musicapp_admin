@@ -1,42 +1,29 @@
-import 'dart:math';
-// import 'dart:typed_data';
+// ignore_for_file: prefer_const_constructors
+
 import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'package:flutter/material.dart';
-// import 'dart:io';
 import 'package:file_picker/file_picker.dart';
-import 'package:just_audio/just_audio.dart';
+import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
 import 'package:uuid/uuid.dart';
 
 // model class for song metadata
 class SongMetadata {
   final String id;
-  final String title;
-  final String artist;
-  final int duration;
-  final String bitrate;
   final String s3Key;
   final DateTime uploadedAt;
 
   SongMetadata({
     String? id,
-    required this.title,
-    required this.artist,
-    required this.duration,
-    required this.bitrate,
     required this.s3Key,
     DateTime? uploadedAt,
-  })  : this.id = id ?? const Uuid().v4(),
-        this.uploadedAt = uploadedAt ?? DateTime.now();
+  })  : id = id ?? const Uuid().v4(),
+        uploadedAt = uploadedAt ?? DateTime.now();
 
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'title': title,
-      'artist': artist,
-      'duration': duration,
-      'bitrate': bitrate,
       's3Key': s3Key,
       'uploadedAt': uploadedAt.toIso8601String(),
     };
@@ -74,93 +61,53 @@ class SongUploadManager extends StatefulWidget {
 class _SongUploadManagerState extends State<SongUploadManager> {
   List<SongUpload> songs = [];
   bool uploading = false;
-  int currentPage = 1;
-  final int itemsPerPage = 5;
+
+  // Add these constants at the class level
+  static const int chunkSize = 10 * 1024 * 1024; // 10MB chunks
+  static const int maxRetries = 3;
 
   @override
   void initState() {
     super.initState();
-    _configureAmplify();
   }
 
-  // Configure Amplify
-  Future<void> _configureAmplify() async {
-    try {
-      // Create Storage and API plugins instance
-      final storagePlugin = AmplifyStorageS3();
-      final apiPlugin = AmplifyAPI();
-
-      // Add plugins to Amplify
-      await Amplify.addPlugins([storagePlugin, apiPlugin]);
-
-      // Configure Amplify
-      // Note: You need to create an amplifyconfiguration.dart file with your AWS configuration
-      // await Amplify.configure(amplifyconfig);
-    } catch (e) {
-      debugPrint('Error configuring Amplify: $e');
-      _showErrorSnackBar('Error configuring AWS services');
-    }
-  }
-
-  // Pick audio files
+  // Modify pickFiles to check for configuration
   Future<void> pickFiles() async {
     try {
       FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['mp3', 'flac'],
         allowMultiple: true,
-        withData: true,
+        withData: false,
+        withReadStream: true,
       );
 
-      if (result != null) {
-        final newSongs = await Future.wait(
-          result.files.map((file) async {
-            final metadata = await _extractAudioMetadata(file);
-            return SongUpload(
-              platformFile: file,
-              name: file.name,
-              size: file.size,
-              metadata: metadata,
-            );
-          }),
-        );
+      if (result != null && result.files.isNotEmpty) {
+        final newSongs = result.files.where((file) {
+          // Add validation for file stream
+          if (file.readStream == null) {
+            _showErrorSnackBar('Cannot read file: ${file.name}');
+            return false;
+          }
+          return true;
+        }).map((file) {
+          final s3Key = 'public/${file.name}';
+          return SongUpload(
+            platformFile: file,
+            name: file.name,
+            size: file.size,
+            metadata: SongMetadata(s3Key: s3Key),
+          );
+        }).toList();
 
-        setState(() {
-          songs.addAll(newSongs);
-        });
+        if (newSongs.isNotEmpty) {
+          setState(() {
+            songs.addAll(newSongs);
+          });
+        }
       }
     } catch (e) {
       _showErrorSnackBar('Error picking files: $e');
-    }
-  }
-
-  // Extract real audio metadata using just_audio
-  Future<SongMetadata> _extractAudioMetadata(PlatformFile file) async {
-    final player = AudioPlayer();
-
-    try {
-      final bytes = file.bytes!;
-      // Create a temporary URL for the audio file
-      final audioSource = AudioSource.uri(
-        Uri.dataFromBytes(bytes, mimeType: 'audio/${file.extension}'),
-      );
-
-      await player.setAudioSource(audioSource);
-      final duration = await player.duration;
-
-      // Generate a unique S3 key for the file
-      final s3Key = 'uploads/${const Uuid().v4()}/${file.name}';
-
-      return SongMetadata(
-        title: file.name,
-        artist: 'Unknown Artist', // Could be extracted from ID3 tags
-        duration: duration?.inSeconds ?? 0,
-        bitrate: '320kbps', // Could be calculated from file size and duration
-        s3Key: s3Key,
-      );
-    } catch (e) {
-      debugPrint('Error extracting metadata: $e');
-      rethrow;
     }
   }
 
@@ -172,11 +119,8 @@ class _SongUploadManagerState extends State<SongUploadManager> {
         song.errorMessage = null;
       });
 
-      // Upload to S3
       await _uploadToS3(song);
-
-      // Store metadata in DynamoDB through AppSync
-      await _storeMetadata(song.metadata);
+      await createSongs(song);
 
       setState(() {
         song.uploadStatus = 'success';
@@ -190,39 +134,166 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     }
   }
 
-  // Upload file to S3 using Amplify Storage
-  Future<void> _uploadToS3(SongUpload song) async {}
-
-  // Store metadata using AppSync/GraphQL API
-  Future<void> _storeMetadata(SongMetadata metadata) async {
+  // Modified _uploadToS3 method to handle chunked uploads
+  Future<void> _uploadToS3(SongUpload song) async {
+    Stream<List<int>>? fileStream;
     try {
-      const String mutationDocument = '''
-        mutation CreateSong(\$input: CreateSongInput!) {
-          createSong(input: \$input) {
-            id
-            title
-            artist
-            duration
-            bitrate
-            s3Key
-            uploadedAt
+      fileStream = song.platformFile.readStream;
+      if (fileStream == null) {
+        throw Exception('Cannot read file stream');
+      }
+
+      debugPrint(
+          'Starting chunked upload for ${song.name} (${_formatFileSize(song.size)})');
+
+      if (song.size > chunkSize) {
+        await _uploadInChunks(song, fileStream);
+      } else {
+        // For small files, use regular upload
+        await _uploadSingleFile(song, fileStream);
+      }
+
+      debugPrint('Successfully uploaded file: ${song.metadata.s3Key}');
+    } catch (e, stackTrace) {
+      debugPrint('Upload error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      throw Exception('Failed to upload file: $e');
+    }
+  }
+
+  // New method for chunked upload
+  Future<void> _uploadInChunks(
+      SongUpload song, Stream<List<int>> fileStream) async {
+    final int totalChunks = (song.size / chunkSize).ceil();
+    final chunks = _splitStreamIntoChunks(fileStream, chunkSize);
+    int uploadedChunks = 0;
+    int totalBytesUploaded = 0;
+
+    await for (final chunk in chunks) {
+      final chunkNumber = uploadedChunks + 1;
+      final String chunkKey = '${song.metadata.s3Key}.part$chunkNumber';
+
+      bool uploaded = false;
+      int retryCount = 0;
+
+      while (!uploaded && retryCount < maxRetries) {
+        try {
+          await Amplify.Storage.uploadFile(
+            localFile: AWSFile.fromData(chunk),
+            path: StoragePath.fromString(chunkKey),
+            options: StorageUploadFileOptions(
+              metadata: {
+                'chunkNumber': '$chunkNumber',
+                'totalChunks': '$totalChunks',
+                'originalKey': song.metadata.s3Key,
+              },
+            ),
+          ).result;
+
+          totalBytesUploaded += chunk.length;
+          uploadedChunks++;
+
+          // Update progress
+          final progress = (totalBytesUploaded / song.size) * 100;
+          setState(() {
+            song.progress = progress;
+          });
+
+          debugPrint('Uploaded chunk $chunkNumber/$totalChunks - '
+              '${_formatFileSize(totalBytesUploaded)}/${_formatFileSize(song.size)}');
+
+          uploaded = true;
+        } catch (e) {
+          retryCount++;
+          if (retryCount >= maxRetries) {
+            throw Exception(
+                'Failed to upload chunk after $maxRetries attempts');
           }
+          debugPrint('Retrying chunk $chunkNumber (attempt $retryCount)');
+          await Future.delayed(
+              Duration(seconds: retryCount * 2)); // Exponential backoff
         }
-      ''';
+      }
+    }
 
-      final variables = {
-        'input': metadata.toJson(),
-      };
+    // After all chunks are uploaded, trigger the merge operation
+    await _mergeChunks(song, totalChunks);
+  }
 
-      final request = GraphQLRequest<String>(
-        document: mutationDocument,
-        variables: variables,
-      );
+  // Helper method to split stream into chunks
+  Stream<List<int>> _splitStreamIntoChunks(
+      Stream<List<int>> source, int chunkSize) async* {
+    List<int> currentChunk = [];
 
-      await Amplify.API.mutate(request: request).response;
+    await for (final List<int> data in source) {
+      currentChunk.addAll(data);
+
+      while (currentChunk.length >= chunkSize) {
+        yield currentChunk.sublist(0, chunkSize);
+        currentChunk = currentChunk.sublist(chunkSize);
+      }
+    }
+
+    if (currentChunk.isNotEmpty) {
+      yield currentChunk;
+    }
+  }
+
+  // Helper method for regular single-file upload
+  Future<void> _uploadSingleFile(
+      SongUpload song, Stream<List<int>> fileStream) async {
+    await Amplify.Storage.uploadFile(
+      localFile: AWSFile.fromStream(
+        fileStream,
+        size: song.platformFile.size,
+      ),
+      path: StoragePath.fromString(song.metadata.s3Key),
+      onProgress: (progress) {
+        setState(() {
+          song.progress = progress.fractionCompleted * 100;
+        });
+      },
+      options: StorageUploadFileOptions(
+        pluginOptions: S3UploadFilePluginOptions(
+          getProperties: true,
+        ),
+      ),
+    ).result;
+  }
+
+  // Helper method to merge chunks (this would typically be handled by a backend service)
+  Future<void> _mergeChunks(SongUpload song, int totalChunks) async {
+    debugPrint('Merging $totalChunks chunks for ${song.metadata.s3Key}');
+
+    try {
+      // Create a list of all chunk keys
+      List<String> chunkKeys = List.generate(
+          totalChunks, (i) => '${song.metadata.s3Key}.part${i + 1}');
+
+      // Download and combine all chunks
+      List<int> completeFile = [];
+      for (String chunkKey in chunkKeys) {
+        final result = await Amplify.Storage.downloadData(
+          path: StoragePath.fromString(chunkKey),
+        ).result;
+        completeFile.addAll(result.bytes);
+      }
+
+      // Upload the complete file
+      await Amplify.Storage.uploadFile(
+        localFile: AWSFile.fromData(completeFile),
+        path: StoragePath.fromString(song.metadata.s3Key),
+      ).result;
+
+      // Clean up chunk files
+      for (String chunkKey in chunkKeys) {
+        await Amplify.Storage.remove(
+          path: StoragePath.fromString(chunkKey),
+        ).result;
+      }
     } catch (e) {
-      debugPrint('API error: $e');
-      rethrow;
+      debugPrint('Error merging chunks: $e');
+      throw Exception('Failed to merge chunks: $e');
     }
   }
 
@@ -238,6 +309,10 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       for (var song in pendingSongs) {
         await uploadSong(song);
       }
+      // Only remove successful uploads
+      setState(() {
+        songs.removeWhere((song) => song.uploadStatus == 'success');
+      });
     } finally {
       setState(() {
         uploading = false;
@@ -245,7 +320,6 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     }
   }
 
-  // Show error snackbar
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -255,130 +329,215 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     );
   }
 
-  // Format file size
-  String formatFileSize(int bytes) {
-    if (bytes <= 0) return '0 B';
-    const suffixes = ['B', 'KB', 'MB', 'GB'];
-    var i = (log(bytes) / log(1024)).floor();
-    return '${(bytes / pow(1024, i)).toStringAsFixed(2)} ${suffixes[i]}';
-  }
+  Future<void> createSongs(SongUpload song) async {
+    try {
+      final model = Songs(
+          title: song.name,
+          artist: "Unknown Artist",
+          album: "Unknown Album",
+          duration: 0,
+          fileType: song.name.split('.').last,
+          genre: "Unknown Genre",
+          uploadAt: TemporalDateTime.now());
 
-  // Format duration
-  String formatDuration(int seconds) {
-    final minutes = seconds ~/ 60;
-    final remainingSeconds = seconds % 60;
-    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+      final request = ModelMutations.create(model);
+      final response = await Amplify.API.mutate(request: request).response;
+
+      final createdSong = response.data;
+      if (createdSong == null) {
+        safePrint('errors: ${response.errors}');
+        return;
+      }
+      safePrint('Mutation result: ${createdSong.id}');
+    } on ApiException catch (e) {
+      safePrint('Mutation failed: $e');
+      rethrow;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final startIndex = (currentPage - 1) * itemsPerPage;
-    final endIndex = min(startIndex + itemsPerPage, songs.length);
-    final paginatedSongs = songs.sublist(startIndex, endIndex);
-    final totalPages = (songs.length / itemsPerPage).ceil();
-
     return Scaffold(
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        title: const Text('Upload Songs'),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Action buttons
-            Row(
+            // Action Buttons Row
+            Wrap(
+              spacing: 16.0,
+              runSpacing: 16.0,
+              alignment: WrapAlignment.start,
               children: [
                 ElevatedButton.icon(
                   onPressed: pickFiles,
                   icon: const Icon(Icons.music_note),
                   label: const Text('Select Files'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                  ),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: songs.isEmpty || uploading ? null : uploadAll,
                   icon: const Icon(Icons.upload),
                   label: const Text('Upload All'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                  ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-            // Songs table
-            Expanded(
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: SingleChildScrollView(
-                  child: DataTable(
-                    columns: const [
-                      DataColumn(label: Text('Title')),
-                      DataColumn(label: Text('Artist')),
-                      DataColumn(label: Text('Duration')),
-                      DataColumn(label: Text('Size')),
-                      DataColumn(label: Text('Status')),
-                    ],
-                    rows: paginatedSongs.map((song) {
-                      return DataRow(
-                        cells: [
-                          DataCell(Text(song.metadata.title)),
-                          DataCell(Text(song.metadata.artist)),
-                          DataCell(
-                              Text(formatDuration(song.metadata.duration))),
-                          DataCell(Text(formatFileSize(song.size))),
-                          DataCell(_buildStatusCell(song)),
-                        ],
-                      );
-                    }).toList(),
-                  ),
-                ),
+            // Table Header
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8.0),
+              child: Text(
+                'Upload Queue',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
             ),
 
-            // Pagination
-            if (totalPages > 1)
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    onPressed: currentPage > 1
-                        ? () => setState(() => currentPage--)
-                        : null,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  Text('Page $currentPage of $totalPages'),
-                  IconButton(
-                    onPressed: currentPage < totalPages
-                        ? () => setState(() => currentPage++)
-                        : null,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
+            // Table Content
+            Expanded(
+              child: Card(
+                elevation: 2,
+                child: songs.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No files selected',
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: Colors.grey,
+                                  ),
+                        ),
+                      )
+                    : SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SingleChildScrollView(
+                          child: DataTable(
+                            columnSpacing: 24,
+                            horizontalMargin: 16,
+                            columns: const [
+                              DataColumn(label: Text('Name')),
+                              DataColumn(label: Text('Size')),
+                              DataColumn(label: Text('Status')),
+                              DataColumn(label: Text('Progress')),
+                            ],
+                            rows: songs.map((song) {
+                              return DataRow(
+                                cells: [
+                                  DataCell(
+                                    ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 200),
+                                      child: Text(
+                                        song.name,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ),
+                                  DataCell(Text(_formatFileSize(song.size))),
+                                  DataCell(_buildStatusCell(song)),
+                                  DataCell(_buildProgressIndicator(song)),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
               ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatusCell(SongUpload song) {
-    switch (song.uploadStatus) {
-      case 'pending':
-        return const Text('Pending');
-      case 'uploading':
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 8),
-            Text('${song.progress.toInt()}%'),
-          ],
-        );
-      case 'success':
-        return const Icon(Icons.check_circle, color: Colors.green);
-      case 'error':
-        return const Icon(Icons.error, color: Colors.red);
-      default:
-        return const Text('Unknown');
+  // Add this helper method for formatting file size
+  String _formatFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) {
+      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB';
   }
+
+  Widget _buildStatusCell(SongUpload song) {
+    Color color;
+    IconData icon;
+
+    switch (song.uploadStatus) {
+      case 'success':
+        color = Colors.green;
+        icon = Icons.check_circle;
+        break;
+      case 'error':
+        color = Colors.red;
+        icon = Icons.error;
+        break;
+      case 'uploading':
+        color = Colors.blue;
+        icon = Icons.upload;
+        break;
+      default:
+        color = Colors.grey;
+        icon = Icons.hourglass_empty;
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 8),
+        Text(song.uploadStatus),
+      ],
+    );
+  }
+
+  Widget _buildProgressIndicator(SongUpload song) {
+    if (song.uploadStatus == 'uploading') {
+      return Container(
+        width: 150,
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: song.progress / 100,
+                minHeight: 8,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${song.progress.toStringAsFixed(1)}%',
+              style: const TextStyle(fontSize: 12),
+            ),
+          ],
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+class StorageConfig {
+  static const int maxFileSize = 100 * 1024 * 1024; // 100MB
+  static const int chunkSize = 10 * 1024 * 1024; // 10MB
+  static const int maxRetries = 3;
+  static const Duration retryDelay = Duration(seconds: 2);
 }

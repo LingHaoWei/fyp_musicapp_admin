@@ -22,13 +22,13 @@
 import 'ModelProvider.dart';
 import 'package:amplify_core/amplify_core.dart' as amplify_core;
 
-/** This is an auto generated class representing the BudgetEntry type in your schema. */
-class BudgetEntry extends amplify_core.Model {
-  static const classType = const _BudgetEntryModelType();
+/** This is an auto generated class representing the Users type in your schema. */
+class Users extends amplify_core.Model {
+  static const classType = const _UsersModelType();
   final String id;
-  final String? _title;
-  final String? _description;
-  final double? _amount;
+  final String? _name;
+  final String? _email;
+  final String? _preferFileType;
   final amplify_core.TemporalDateTime? _createdAt;
   final amplify_core.TemporalDateTime? _updatedAt;
 
@@ -40,38 +40,20 @@ class BudgetEntry extends amplify_core.Model {
   @override
   String getId() => id;
 
-  BudgetEntryModelIdentifier get modelIdentifier {
-    return BudgetEntryModelIdentifier(id: id);
+  UsersModelIdentifier get modelIdentifier {
+    return UsersModelIdentifier(id: id);
   }
 
-  String get title {
-    try {
-      return _title!;
-    } catch (e) {
-      throw amplify_core.AmplifyCodeGenModelException(
-          amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastExceptionMessage,
-          recoverySuggestion: amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastRecoverySuggestion,
-          underlyingException: e.toString());
-    }
+  String? get name {
+    return _name;
   }
 
-  String? get description {
-    return _description;
+  String? get email {
+    return _email;
   }
 
-  double get amount {
-    try {
-      return _amount!;
-    } catch (e) {
-      throw amplify_core.AmplifyCodeGenModelException(
-          amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastExceptionMessage,
-          recoverySuggestion: amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastRecoverySuggestion,
-          underlyingException: e.toString());
-    }
+  String? get preferFileType {
+    return _preferFileType;
   }
 
   amplify_core.TemporalDateTime? get createdAt {
@@ -82,29 +64,21 @@ class BudgetEntry extends amplify_core.Model {
     return _updatedAt;
   }
 
-  const BudgetEntry._internal(
-      {required this.id,
-      required title,
-      description,
-      required amount,
-      createdAt,
-      updatedAt})
-      : _title = title,
-        _description = description,
-        _amount = amount,
+  const Users._internal(
+      {required this.id, name, email, preferFileType, createdAt, updatedAt})
+      : _name = name,
+        _email = email,
+        _preferFileType = preferFileType,
         _createdAt = createdAt,
         _updatedAt = updatedAt;
 
-  factory BudgetEntry(
-      {String? id,
-      required String title,
-      String? description,
-      required double amount}) {
-    return BudgetEntry._internal(
+  factory Users(
+      {String? id, String? name, String? email, String? preferFileType}) {
+    return Users._internal(
         id: id == null ? amplify_core.UUID.getUUID() : id,
-        title: title,
-        description: description,
-        amount: amount);
+        name: name,
+        email: email,
+        preferFileType: preferFileType);
   }
 
   bool equals(Object other) {
@@ -114,11 +88,11 @@ class BudgetEntry extends amplify_core.Model {
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is BudgetEntry &&
+    return other is Users &&
         id == other.id &&
-        _title == other._title &&
-        _description == other._description &&
-        _amount == other._amount;
+        _name == other._name &&
+        _email == other._email &&
+        _preferFileType == other._preferFileType;
   }
 
   @override
@@ -128,12 +102,11 @@ class BudgetEntry extends amplify_core.Model {
   String toString() {
     var buffer = new StringBuffer();
 
-    buffer.write("BudgetEntry {");
+    buffer.write("Users {");
     buffer.write("id=" + "$id" + ", ");
-    buffer.write("title=" + "$_title" + ", ");
-    buffer.write("description=" + "$_description" + ", ");
-    buffer.write(
-        "amount=" + (_amount != null ? _amount.toString() : "null") + ", ");
+    buffer.write("name=" + "$_name" + ", ");
+    buffer.write("email=" + "$_email" + ", ");
+    buffer.write("preferFileType=" + "$_preferFileType" + ", ");
     buffer.write("createdAt=" +
         (_createdAt != null ? _createdAt.format() : "null") +
         ", ");
@@ -144,30 +117,32 @@ class BudgetEntry extends amplify_core.Model {
     return buffer.toString();
   }
 
-  BudgetEntry copyWith({String? title, String? description, double? amount}) {
-    return BudgetEntry._internal(
+  Users copyWith({String? name, String? email, String? preferFileType}) {
+    return Users._internal(
         id: id,
-        title: title ?? this.title,
-        description: description ?? this.description,
-        amount: amount ?? this.amount);
+        name: name ?? this.name,
+        email: email ?? this.email,
+        preferFileType: preferFileType ?? this.preferFileType);
   }
 
-  BudgetEntry copyWithModelFieldValues(
-      {ModelFieldValue<String>? title,
-      ModelFieldValue<String?>? description,
-      ModelFieldValue<double>? amount}) {
-    return BudgetEntry._internal(
+  Users copyWithModelFieldValues(
+      {ModelFieldValue<String?>? name,
+      ModelFieldValue<String?>? email,
+      ModelFieldValue<String?>? preferFileType}) {
+    return Users._internal(
         id: id,
-        title: title == null ? this.title : title.value,
-        description: description == null ? this.description : description.value,
-        amount: amount == null ? this.amount : amount.value);
+        name: name == null ? this.name : name.value,
+        email: email == null ? this.email : email.value,
+        preferFileType: preferFileType == null
+            ? this.preferFileType
+            : preferFileType.value);
   }
 
-  BudgetEntry.fromJson(Map<String, dynamic> json)
+  Users.fromJson(Map<String, dynamic> json)
       : id = json['id'],
-        _title = json['title'],
-        _description = json['description'],
-        _amount = (json['amount'] as num?)?.toDouble(),
+        _name = json['name'],
+        _email = json['email'],
+        _preferFileType = json['preferFileType'],
         _createdAt = json['createdAt'] != null
             ? amplify_core.TemporalDateTime.fromString(json['createdAt'])
             : null,
@@ -177,40 +152,38 @@ class BudgetEntry extends amplify_core.Model {
 
   Map<String, dynamic> toJson() => {
         'id': id,
-        'title': _title,
-        'description': _description,
-        'amount': _amount,
+        'name': _name,
+        'email': _email,
+        'preferFileType': _preferFileType,
         'createdAt': _createdAt?.format(),
         'updatedAt': _updatedAt?.format()
       };
 
   Map<String, Object?> toMap() => {
         'id': id,
-        'title': _title,
-        'description': _description,
-        'amount': _amount,
+        'name': _name,
+        'email': _email,
+        'preferFileType': _preferFileType,
         'createdAt': _createdAt,
         'updatedAt': _updatedAt
       };
 
-  static final amplify_core.QueryModelIdentifier<BudgetEntryModelIdentifier>
+  static final amplify_core.QueryModelIdentifier<UsersModelIdentifier>
       MODEL_IDENTIFIER =
-      amplify_core.QueryModelIdentifier<BudgetEntryModelIdentifier>();
+      amplify_core.QueryModelIdentifier<UsersModelIdentifier>();
   static final ID = amplify_core.QueryField(fieldName: "id");
-  static final TITLE = amplify_core.QueryField(fieldName: "title");
-  static final DESCRIPTION = amplify_core.QueryField(fieldName: "description");
-  static final AMOUNT = amplify_core.QueryField(fieldName: "amount");
+  static final NAME = amplify_core.QueryField(fieldName: "name");
+  static final EMAIL = amplify_core.QueryField(fieldName: "email");
+  static final PREFERFILETYPE =
+      amplify_core.QueryField(fieldName: "preferFileType");
   static var schema = amplify_core.Model.defineSchema(
       define: (amplify_core.ModelSchemaDefinition modelSchemaDefinition) {
-    modelSchemaDefinition.name = "BudgetEntry";
-    modelSchemaDefinition.pluralName = "BudgetEntries";
+    modelSchemaDefinition.name = "Users";
+    modelSchemaDefinition.pluralName = "Users";
 
     modelSchemaDefinition.authRules = [
       amplify_core.AuthRule(
-          authStrategy: amplify_core.AuthStrategy.OWNER,
-          ownerField: "owner",
-          identityClaim: "cognito:username",
-          provider: amplify_core.AuthRuleProvider.USERPOOLS,
+          authStrategy: amplify_core.AuthStrategy.PRIVATE,
           operations: const [
             amplify_core.ModelOperation.CREATE,
             amplify_core.ModelOperation.UPDATE,
@@ -222,22 +195,22 @@ class BudgetEntry extends amplify_core.Model {
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.id());
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.TITLE,
-        isRequired: true,
-        ofType: amplify_core.ModelFieldType(
-            amplify_core.ModelFieldTypeEnum.string)));
-
-    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.DESCRIPTION,
+        key: Users.NAME,
         isRequired: false,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.AMOUNT,
-        isRequired: true,
+        key: Users.EMAIL,
+        isRequired: false,
         ofType: amplify_core.ModelFieldType(
-            amplify_core.ModelFieldTypeEnum.double)));
+            amplify_core.ModelFieldTypeEnum.string)));
+
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+        key: Users.PREFERFILETYPE,
+        isRequired: false,
+        ofType: amplify_core.ModelFieldType(
+            amplify_core.ModelFieldTypeEnum.string)));
 
     modelSchemaDefinition.addField(
         amplify_core.ModelFieldDefinition.nonQueryField(
@@ -257,30 +230,29 @@ class BudgetEntry extends amplify_core.Model {
   });
 }
 
-class _BudgetEntryModelType extends amplify_core.ModelType<BudgetEntry> {
-  const _BudgetEntryModelType();
+class _UsersModelType extends amplify_core.ModelType<Users> {
+  const _UsersModelType();
 
   @override
-  BudgetEntry fromJson(Map<String, dynamic> jsonData) {
-    return BudgetEntry.fromJson(jsonData);
+  Users fromJson(Map<String, dynamic> jsonData) {
+    return Users.fromJson(jsonData);
   }
 
   @override
   String modelName() {
-    return 'BudgetEntry';
+    return 'Users';
   }
 }
 
 /**
  * This is an auto generated class representing the model identifier
- * of [BudgetEntry] in your schema.
+ * of [Users] in your schema.
  */
-class BudgetEntryModelIdentifier
-    implements amplify_core.ModelIdentifier<BudgetEntry> {
+class UsersModelIdentifier implements amplify_core.ModelIdentifier<Users> {
   final String id;
 
-  /** Create an instance of BudgetEntryModelIdentifier using [id] the primary key. */
-  const BudgetEntryModelIdentifier({required this.id});
+  /** Create an instance of UsersModelIdentifier using [id] the primary key. */
+  const UsersModelIdentifier({required this.id});
 
   @override
   Map<String, dynamic> serializeAsMap() => (<String, dynamic>{'id': id});
@@ -295,7 +267,7 @@ class BudgetEntryModelIdentifier
   String serializeAsString() => serializeAsMap().values.join('#');
 
   @override
-  String toString() => 'BudgetEntryModelIdentifier(id: $id)';
+  String toString() => 'UsersModelIdentifier(id: $id)';
 
   @override
   bool operator ==(Object other) {
@@ -303,7 +275,7 @@ class BudgetEntryModelIdentifier
       return true;
     }
 
-    return other is BudgetEntryModelIdentifier && id == other.id;
+    return other is UsersModelIdentifier && id == other.id;
   }
 
   @override

@@ -1,6 +1,22 @@
-type BudgetEntry @model @auth(rules: [{ allow: owner }]) {
+type Users @model @auth(rules: [{allow: private}]) {
+  id: ID!
+  name: String
+  email: String
+  preferFileType: String
+}
+
+type Songs @model @auth(rules: [{allow: owner}]) {
   id: ID!
   title: String!
-  description: String
-  amount: Float!
+  artist: String
+  album: String!
+  duration: Int
+  fileType: String
+  genre: String
+  uploadAt: AWSDateTime
+}
+
+enum PostStatus {
+  ACTIVE
+  INACTIVE
 }

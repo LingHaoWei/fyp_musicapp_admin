@@ -49,14 +49,13 @@ dependencies:
   aws_dynamodb_api: ^2.0.0
   aws_sdk: ^0.0.3
   path_provider: ^2.1.5
-  audiotags: ^1.4.1
   audiotagger: ^2.2.1
   amplify_storage_s3: ^2.5.0
   amplify_api: ^2.5.0
   uuid: ^4.5.1
   just_audio: ^0.9.42
-  metadata_god: ^0.3.2
   amazon_cognito_identity_dart_2: ^1.0.5
+  amplify_datastore: ^2.5.0
 
 dev_dependencies:
   flutter_test:

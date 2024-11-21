@@ -22,13 +22,17 @@
 import 'ModelProvider.dart';
 import 'package:amplify_core/amplify_core.dart' as amplify_core;
 
-/** This is an auto generated class representing the BudgetEntry type in your schema. */
-class BudgetEntry extends amplify_core.Model {
-  static const classType = const _BudgetEntryModelType();
+/** This is an auto generated class representing the Songs type in your schema. */
+class Songs extends amplify_core.Model {
+  static const classType = const _SongsModelType();
   final String id;
   final String? _title;
-  final String? _description;
-  final double? _amount;
+  final String? _artist;
+  final String? _album;
+  final int? _duration;
+  final String? _fileType;
+  final String? _genre;
+  final amplify_core.TemporalDateTime? _uploadAt;
   final amplify_core.TemporalDateTime? _createdAt;
   final amplify_core.TemporalDateTime? _updatedAt;
 
@@ -40,8 +44,8 @@ class BudgetEntry extends amplify_core.Model {
   @override
   String getId() => id;
 
-  BudgetEntryModelIdentifier get modelIdentifier {
-    return BudgetEntryModelIdentifier(id: id);
+  SongsModelIdentifier get modelIdentifier {
+    return SongsModelIdentifier(id: id);
   }
 
   String get title {
@@ -57,13 +61,13 @@ class BudgetEntry extends amplify_core.Model {
     }
   }
 
-  String? get description {
-    return _description;
+  String? get artist {
+    return _artist;
   }
 
-  double get amount {
+  String get album {
     try {
-      return _amount!;
+      return _album!;
     } catch (e) {
       throw amplify_core.AmplifyCodeGenModelException(
           amplify_core.AmplifyExceptionMessages
@@ -74,6 +78,22 @@ class BudgetEntry extends amplify_core.Model {
     }
   }
 
+  int? get duration {
+    return _duration;
+  }
+
+  String? get fileType {
+    return _fileType;
+  }
+
+  String? get genre {
+    return _genre;
+  }
+
+  amplify_core.TemporalDateTime? get uploadAt {
+    return _uploadAt;
+  }
+
   amplify_core.TemporalDateTime? get createdAt {
     return _createdAt;
   }
@@ -82,29 +102,45 @@ class BudgetEntry extends amplify_core.Model {
     return _updatedAt;
   }
 
-  const BudgetEntry._internal(
+  const Songs._internal(
       {required this.id,
       required title,
-      description,
-      required amount,
+      artist,
+      required album,
+      duration,
+      fileType,
+      genre,
+      uploadAt,
       createdAt,
       updatedAt})
       : _title = title,
-        _description = description,
-        _amount = amount,
+        _artist = artist,
+        _album = album,
+        _duration = duration,
+        _fileType = fileType,
+        _genre = genre,
+        _uploadAt = uploadAt,
         _createdAt = createdAt,
         _updatedAt = updatedAt;
 
-  factory BudgetEntry(
+  factory Songs(
       {String? id,
       required String title,
-      String? description,
-      required double amount}) {
-    return BudgetEntry._internal(
+      String? artist,
+      required String album,
+      int? duration,
+      String? fileType,
+      String? genre,
+      amplify_core.TemporalDateTime? uploadAt}) {
+    return Songs._internal(
         id: id == null ? amplify_core.UUID.getUUID() : id,
         title: title,
-        description: description,
-        amount: amount);
+        artist: artist,
+        album: album,
+        duration: duration,
+        fileType: fileType,
+        genre: genre,
+        uploadAt: uploadAt);
   }
 
   bool equals(Object other) {
@@ -114,11 +150,15 @@ class BudgetEntry extends amplify_core.Model {
   @override
   bool operator ==(Object other) {
     if (identical(other, this)) return true;
-    return other is BudgetEntry &&
+    return other is Songs &&
         id == other.id &&
         _title == other._title &&
-        _description == other._description &&
-        _amount == other._amount;
+        _artist == other._artist &&
+        _album == other._album &&
+        _duration == other._duration &&
+        _fileType == other._fileType &&
+        _genre == other._genre &&
+        _uploadAt == other._uploadAt;
   }
 
   @override
@@ -128,12 +168,18 @@ class BudgetEntry extends amplify_core.Model {
   String toString() {
     var buffer = new StringBuffer();
 
-    buffer.write("BudgetEntry {");
+    buffer.write("Songs {");
     buffer.write("id=" + "$id" + ", ");
     buffer.write("title=" + "$_title" + ", ");
-    buffer.write("description=" + "$_description" + ", ");
+    buffer.write("artist=" + "$_artist" + ", ");
+    buffer.write("album=" + "$_album" + ", ");
+    buffer.write("duration=" +
+        (_duration != null ? _duration.toString() : "null") +
+        ", ");
+    buffer.write("fileType=" + "$_fileType" + ", ");
+    buffer.write("genre=" + "$_genre" + ", ");
     buffer.write(
-        "amount=" + (_amount != null ? _amount.toString() : "null") + ", ");
+        "uploadAt=" + (_uploadAt != null ? _uploadAt.format() : "null") + ", ");
     buffer.write("createdAt=" +
         (_createdAt != null ? _createdAt.format() : "null") +
         ", ");
@@ -144,30 +190,55 @@ class BudgetEntry extends amplify_core.Model {
     return buffer.toString();
   }
 
-  BudgetEntry copyWith({String? title, String? description, double? amount}) {
-    return BudgetEntry._internal(
+  Songs copyWith(
+      {String? title,
+      String? artist,
+      String? album,
+      int? duration,
+      String? fileType,
+      String? genre,
+      amplify_core.TemporalDateTime? uploadAt}) {
+    return Songs._internal(
         id: id,
         title: title ?? this.title,
-        description: description ?? this.description,
-        amount: amount ?? this.amount);
+        artist: artist ?? this.artist,
+        album: album ?? this.album,
+        duration: duration ?? this.duration,
+        fileType: fileType ?? this.fileType,
+        genre: genre ?? this.genre,
+        uploadAt: uploadAt ?? this.uploadAt);
   }
 
-  BudgetEntry copyWithModelFieldValues(
+  Songs copyWithModelFieldValues(
       {ModelFieldValue<String>? title,
-      ModelFieldValue<String?>? description,
-      ModelFieldValue<double>? amount}) {
-    return BudgetEntry._internal(
+      ModelFieldValue<String?>? artist,
+      ModelFieldValue<String>? album,
+      ModelFieldValue<int?>? duration,
+      ModelFieldValue<String?>? fileType,
+      ModelFieldValue<String?>? genre,
+      ModelFieldValue<amplify_core.TemporalDateTime?>? uploadAt}) {
+    return Songs._internal(
         id: id,
         title: title == null ? this.title : title.value,
-        description: description == null ? this.description : description.value,
-        amount: amount == null ? this.amount : amount.value);
+        artist: artist == null ? this.artist : artist.value,
+        album: album == null ? this.album : album.value,
+        duration: duration == null ? this.duration : duration.value,
+        fileType: fileType == null ? this.fileType : fileType.value,
+        genre: genre == null ? this.genre : genre.value,
+        uploadAt: uploadAt == null ? this.uploadAt : uploadAt.value);
   }
 
-  BudgetEntry.fromJson(Map<String, dynamic> json)
+  Songs.fromJson(Map<String, dynamic> json)
       : id = json['id'],
         _title = json['title'],
-        _description = json['description'],
-        _amount = (json['amount'] as num?)?.toDouble(),
+        _artist = json['artist'],
+        _album = json['album'],
+        _duration = (json['duration'] as num?)?.toInt(),
+        _fileType = json['fileType'],
+        _genre = json['genre'],
+        _uploadAt = json['uploadAt'] != null
+            ? amplify_core.TemporalDateTime.fromString(json['uploadAt'])
+            : null,
         _createdAt = json['createdAt'] != null
             ? amplify_core.TemporalDateTime.fromString(json['createdAt'])
             : null,
@@ -178,8 +249,12 @@ class BudgetEntry extends amplify_core.Model {
   Map<String, dynamic> toJson() => {
         'id': id,
         'title': _title,
-        'description': _description,
-        'amount': _amount,
+        'artist': _artist,
+        'album': _album,
+        'duration': _duration,
+        'fileType': _fileType,
+        'genre': _genre,
+        'uploadAt': _uploadAt?.format(),
         'createdAt': _createdAt?.format(),
         'updatedAt': _updatedAt?.format()
       };
@@ -187,23 +262,31 @@ class BudgetEntry extends amplify_core.Model {
   Map<String, Object?> toMap() => {
         'id': id,
         'title': _title,
-        'description': _description,
-        'amount': _amount,
+        'artist': _artist,
+        'album': _album,
+        'duration': _duration,
+        'fileType': _fileType,
+        'genre': _genre,
+        'uploadAt': _uploadAt,
         'createdAt': _createdAt,
         'updatedAt': _updatedAt
       };
 
-  static final amplify_core.QueryModelIdentifier<BudgetEntryModelIdentifier>
+  static final amplify_core.QueryModelIdentifier<SongsModelIdentifier>
       MODEL_IDENTIFIER =
-      amplify_core.QueryModelIdentifier<BudgetEntryModelIdentifier>();
+      amplify_core.QueryModelIdentifier<SongsModelIdentifier>();
   static final ID = amplify_core.QueryField(fieldName: "id");
   static final TITLE = amplify_core.QueryField(fieldName: "title");
-  static final DESCRIPTION = amplify_core.QueryField(fieldName: "description");
-  static final AMOUNT = amplify_core.QueryField(fieldName: "amount");
+  static final ARTIST = amplify_core.QueryField(fieldName: "artist");
+  static final ALBUM = amplify_core.QueryField(fieldName: "album");
+  static final DURATION = amplify_core.QueryField(fieldName: "duration");
+  static final FILETYPE = amplify_core.QueryField(fieldName: "fileType");
+  static final GENRE = amplify_core.QueryField(fieldName: "genre");
+  static final UPLOADAT = amplify_core.QueryField(fieldName: "uploadAt");
   static var schema = amplify_core.Model.defineSchema(
       define: (amplify_core.ModelSchemaDefinition modelSchemaDefinition) {
-    modelSchemaDefinition.name = "BudgetEntry";
-    modelSchemaDefinition.pluralName = "BudgetEntries";
+    modelSchemaDefinition.name = "Songs";
+    modelSchemaDefinition.pluralName = "Songs";
 
     modelSchemaDefinition.authRules = [
       amplify_core.AuthRule(
@@ -222,22 +305,46 @@ class BudgetEntry extends amplify_core.Model {
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.id());
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.TITLE,
+        key: Songs.TITLE,
         isRequired: true,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.DESCRIPTION,
+        key: Songs.ARTIST,
         isRequired: false,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: BudgetEntry.AMOUNT,
+        key: Songs.ALBUM,
         isRequired: true,
         ofType: amplify_core.ModelFieldType(
-            amplify_core.ModelFieldTypeEnum.double)));
+            amplify_core.ModelFieldTypeEnum.string)));
+
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+        key: Songs.DURATION,
+        isRequired: false,
+        ofType:
+            amplify_core.ModelFieldType(amplify_core.ModelFieldTypeEnum.int)));
+
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+        key: Songs.FILETYPE,
+        isRequired: false,
+        ofType: amplify_core.ModelFieldType(
+            amplify_core.ModelFieldTypeEnum.string)));
+
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+        key: Songs.GENRE,
+        isRequired: false,
+        ofType: amplify_core.ModelFieldType(
+            amplify_core.ModelFieldTypeEnum.string)));
+
+    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
+        key: Songs.UPLOADAT,
+        isRequired: false,
+        ofType: amplify_core.ModelFieldType(
+            amplify_core.ModelFieldTypeEnum.dateTime)));
 
     modelSchemaDefinition.addField(
         amplify_core.ModelFieldDefinition.nonQueryField(
@@ -257,30 +364,29 @@ class BudgetEntry extends amplify_core.Model {
   });
 }
 
-class _BudgetEntryModelType extends amplify_core.ModelType<BudgetEntry> {
-  const _BudgetEntryModelType();
+class _SongsModelType extends amplify_core.ModelType<Songs> {
+  const _SongsModelType();
 
   @override
-  BudgetEntry fromJson(Map<String, dynamic> jsonData) {
-    return BudgetEntry.fromJson(jsonData);
+  Songs fromJson(Map<String, dynamic> jsonData) {
+    return Songs.fromJson(jsonData);
   }
 
   @override
   String modelName() {
-    return 'BudgetEntry';
+    return 'Songs';
   }
 }
 
 /**
  * This is an auto generated class representing the model identifier
- * of [BudgetEntry] in your schema.
+ * of [Songs] in your schema.
  */
-class BudgetEntryModelIdentifier
-    implements amplify_core.ModelIdentifier<BudgetEntry> {
+class SongsModelIdentifier implements amplify_core.ModelIdentifier<Songs> {
   final String id;
 
-  /** Create an instance of BudgetEntryModelIdentifier using [id] the primary key. */
-  const BudgetEntryModelIdentifier({required this.id});
+  /** Create an instance of SongsModelIdentifier using [id] the primary key. */
+  const SongsModelIdentifier({required this.id});
 
   @override
   Map<String, dynamic> serializeAsMap() => (<String, dynamic>{'id': id});
@@ -295,7 +401,7 @@ class BudgetEntryModelIdentifier
   String serializeAsString() => serializeAsMap().values.join('#');
 
   @override
-  String toString() => 'BudgetEntryModelIdentifier(id: $id)';
+  String toString() => 'SongsModelIdentifier(id: $id)';
 
   @override
   bool operator ==(Object other) {
@@ -303,7 +409,7 @@ class BudgetEntryModelIdentifier
       return true;
     }
 
-    return other is BudgetEntryModelIdentifier && id == other.id;
+    return other is SongsModelIdentifier && id == other.id;
   }
 
   @override

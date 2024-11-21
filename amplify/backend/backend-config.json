@@ -12,7 +12,11 @@
       ],
       "output": {
         "authConfig": {
-          "additionalAuthenticationProviders": [],
+          "additionalAuthenticationProviders": [
+            {
+              "authenticationType": "AWS_IAM"
+            }
+          ],
           "defaultAuthentication": {
             "authenticationType": "AMAZON_COGNITO_USER_POOLS",
             "userPoolConfig": {
@@ -49,6 +53,47 @@
       },
       "providerPlugin": "awscloudformation",
       "service": "Cognito"
+    }
+  },
+  "parameters": {
+    "AMPLIFY_storage_fypmusicappadminda1139eb_bucketName": {
+      "usedBy": [
+        {
+          "category": "storage",
+          "resourceName": "fypmusicappadminda1139eb"
+        }
+      ]
+    },
+    "AMPLIFY_storage_fypmusicappadminda1139eb_region": {
+      "usedBy": [
+        {
+          "category": "storage",
+          "resourceName": "fypmusicappadminda1139eb"
+        }
+      ]
+    },
+    "AMPLIFY_storage_fypmusicappadminee99a584_bucketName": {
+      "usedBy": [
+        {
+          "category": "storage",
+          "resourceName": "fypmusicappadminee99a584"
+        }
+      ]
+    },
+    "AMPLIFY_storage_fypmusicappadminee99a584_region": {
+      "usedBy": [
+        {
+          "category": "storage",
+          "resourceName": "fypmusicappadminee99a584"
+        }
+      ]
+    }
+  },
+  "storage": {
+    "s3fypmusicappadminstoragea01": {
+      "dependsOn": [],
+      "providerPlugin": "awscloudformation",
+      "service": "S3"
     }
   }
 }

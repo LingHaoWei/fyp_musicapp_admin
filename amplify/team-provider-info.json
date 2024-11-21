@@ -17,6 +17,18 @@
       },
       "api": {
         "fypmusicappadmin": {}
+      },
+      "storage": {
+        "fypmusicappadminda1139eb": {
+          "bucketName": "limu-bucket-test",
+          "region": "ap-southeast-2"
+        },
+        "s3fd89908f": {},
+        "fypmusicappadminee99a584": {
+          "bucketName": "limu-bucket-test",
+          "region": "ap-southeast-2"
+        },
+        "s3fypmusicappadminstoragea01": {}
       }
     }
   }
