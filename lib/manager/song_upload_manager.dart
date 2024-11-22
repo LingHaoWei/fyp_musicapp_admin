@@ -7,6 +7,24 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
 import 'package:uuid/uuid.dart';
+import 'package:flutter/services.dart'; // For TextInputFormatters
+
+// Add this at the top of the file with other constants
+const List<String> musicGenres = [
+  'Pop',
+  'Rock',
+  'Hip Hop',
+  'R&B',
+  'Jazz',
+  'Classical',
+  'Electronic',
+  'Country',
+  'Blues',
+  'Folk',
+  'Metal',
+  'Reggae',
+  'Other'
+];
 
 // model class for song metadata
 class SongMetadata {
@@ -39,6 +57,13 @@ class SongUpload {
   String uploadStatus;
   double progress;
   String? errorMessage;
+  String? artist;
+  String? album;
+  String? genre;
+  int? duration;
+  TextEditingController artistController = TextEditingController();
+  TextEditingController albumController = TextEditingController();
+  TextEditingController durationController = TextEditingController();
 
   SongUpload({
     required this.platformFile,
@@ -48,7 +73,15 @@ class SongUpload {
     this.uploadStatus = 'pending',
     this.progress = 0,
     this.errorMessage,
-  });
+    this.artist,
+    this.album,
+    this.genre = 'Pop',
+    this.duration = 0,
+  }) {
+    artistController.text = artist ?? '';
+    albumController.text = album ?? '';
+    durationController.text = duration?.toString() ?? '0';
+  }
 }
 
 class SongUploadManager extends StatefulWidget {
@@ -125,6 +158,7 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       setState(() {
         song.uploadStatus = 'success';
       });
+      _showSuccessSnackBar('${song.name} uploaded successfully!');
     } catch (e) {
       setState(() {
         song.uploadStatus = 'error';
@@ -313,6 +347,8 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       setState(() {
         songs.removeWhere((song) => song.uploadStatus == 'success');
       });
+      // Show success message after all uploads complete
+      _showSuccessSnackBar('All songs uploaded successfully!');
     } finally {
       setState(() {
         uploading = false;
@@ -329,15 +365,35 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     );
   }
 
+  void _showSuccessSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 8),
+            Text(message),
+          ],
+        ),
+        backgroundColor: Colors.green,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
   Future<void> createSongs(SongUpload song) async {
     try {
       final model = Songs(
           title: song.name,
-          artist: "Unknown Artist",
-          album: "Unknown Album",
-          duration: 0,
+          artist: song.artistController.text.isNotEmpty
+              ? song.artistController.text
+              : "Unknown Artist",
+          album: song.albumController.text.isNotEmpty
+              ? song.albumController.text
+              : "Unknown Album",
+          duration: parseDurationToSeconds(song.durationController.text),
           fileType: song.name.split('.').last,
-          genre: "Unknown Genre",
+          genre: song.genre ?? "Pop",
           uploadAt: TemporalDateTime.now());
 
       final request = ModelMutations.create(model);
@@ -411,7 +467,11 @@ class _SongUploadManagerState extends State<SongUploadManager> {
             // Table Content
             Expanded(
               child: Card(
-                elevation: 2,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: Color(0xffC5C5C5)),
+                ),
                 child: songs.isEmpty
                     ? Center(
                         child: Text(
@@ -431,8 +491,12 @@ class _SongUploadManagerState extends State<SongUploadManager> {
                             columns: const [
                               DataColumn(label: Text('Name')),
                               DataColumn(label: Text('Size')),
+                              DataColumn(label: Text('Artist')),
+                              DataColumn(label: Text('Album')),
+                              DataColumn(label: Text('Genre')),
                               DataColumn(label: Text('Status')),
                               DataColumn(label: Text('Progress')),
+                              DataColumn(label: Text('Duration (sec)')),
                             ],
                             rows: songs.map((song) {
                               return DataRow(
@@ -448,8 +512,78 @@ class _SongUploadManagerState extends State<SongUploadManager> {
                                     ),
                                   ),
                                   DataCell(Text(_formatFileSize(song.size))),
+                                  DataCell(
+                                    TextField(
+                                      controller: song.artistController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Enter artist name',
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          song.artist = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  DataCell(
+                                    TextField(
+                                      controller: song.albumController,
+                                      decoration: InputDecoration(
+                                        hintText: 'Enter album name',
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: (value) {
+                                        setState(() {
+                                          song.album = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  DataCell(
+                                    DropdownButton<String>(
+                                      value: song.genre ?? 'Pop',
+                                      isExpanded: true,
+                                      underline:
+                                          Container(), // Removes the default underline
+                                      onChanged: (String? newValue) {
+                                        setState(() {
+                                          song.genre = newValue;
+                                        });
+                                      },
+                                      items: musicGenres
+                                          .map<DropdownMenuItem<String>>(
+                                              (String value) {
+                                        return DropdownMenuItem<String>(
+                                          value: value,
+                                          child: Text(value),
+                                        );
+                                      }).toList(),
+                                    ),
+                                  ),
                                   DataCell(_buildStatusCell(song)),
                                   DataCell(_buildProgressIndicator(song)),
+                                  DataCell(
+                                    TextField(
+                                      controller: song.durationController,
+                                      decoration: InputDecoration(
+                                        hintText: 'MM:SS',
+                                        border: InputBorder.none,
+                                      ),
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.allow(RegExp(
+                                            r'[\d:]')), // Only allow numbers and colon
+                                        LengthLimitingTextInputFormatter(
+                                            5), // Limit to MM:SS format
+                                      ],
+                                      onChanged: (value) {
+                                        setState(() {
+                                          song.duration =
+                                              parseDurationToSeconds(value);
+                                        });
+                                      },
+                                    ),
+                                  ),
                                 ],
                               );
                             }).toList(),
@@ -532,6 +666,27 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       );
     }
     return const SizedBox.shrink();
+  }
+
+  // Add these helper functions
+  String formatDuration(int seconds) {
+    int minutes = seconds ~/ 60;
+    int remainingSeconds = seconds % 60;
+    return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+  }
+
+  int parseDurationToSeconds(String duration) {
+    try {
+      final parts = duration.split(':');
+      if (parts.length == 2) {
+        final minutes = int.tryParse(parts[0]) ?? 0;
+        final seconds = int.tryParse(parts[1]) ?? 0;
+        return (minutes * 60) + seconds;
+      }
+    } catch (e) {
+      debugPrint('Error parsing duration: $e');
+    }
+    return 0;
   }
 }
 

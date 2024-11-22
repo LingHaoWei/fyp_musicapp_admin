@@ -6,6 +6,20 @@ import 'package:fyp_musicapp_admin/manager/song_upload_manager.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
 
+String formatDuration(int seconds) {
+  int minutes = seconds ~/ 60;
+  int remainingSeconds = seconds % 60;
+  return '$minutes:${remainingSeconds.toString().padLeft(2, '0')}';
+}
+
+enum SortField {
+  title('Title'),
+  date('Date Added');
+
+  final String label;
+  const SortField(this.label);
+}
+
 class SongsView extends StatefulWidget {
   const SongsView({super.key});
 
@@ -14,13 +28,43 @@ class SongsView extends StatefulWidget {
 }
 
 class _SongsDataView extends State<SongsView> {
+  final TextEditingController _searchController = TextEditingController();
+  List<Songs?> _allSongs = [];
+  List<Songs?> _filteredSongs = [];
+  SortField _currentSortField = SortField.title;
+  bool _isAscending = true;
+
   @override
   void initState() {
     super.initState();
+    _loadSongs();
+  }
+
+  Future<void> _loadSongs() async {
+    _allSongs = await listSongs();
+    _filteredSongs = _allSongs;
+    setState(() {});
   }
 
   /// Fetches a list of songs from the data store using Amplify API.
   Future<List<Songs?>> listSongs() async {
+    try {
+      final request = ModelQueries.list(Songs.classType);
+      final response = await Amplify.API.query(request: request).response;
+
+      final items = response.data?.items;
+      if (items == null) {
+        print('errors: ${response.errors}');
+        return <Songs?>[];
+      }
+      return items;
+    } on ApiException catch (e) {
+      print('Query failed: $e');
+    }
+    return <Songs?>[];
+  }
+
+  Future<List<Songs?>> queryListItems() async {
     try {
       final request = ModelQueries.list(Songs.classType);
       final response = await Amplify.API.query(request: request).response;
@@ -50,6 +94,18 @@ class _SongsDataView extends State<SongsView> {
     } on StorageException catch (e) {
       print('Error deleting file: $e');
     }
+  }
+
+  void _onSearchChanged(String value) {
+    final searchTerm = value.toLowerCase();
+    setState(() {
+      _filteredSongs = _allSongs
+          .where((song) =>
+              song != null &&
+              (song.title.toLowerCase().contains(searchTerm) ||
+                  song.fileType!.toLowerCase().contains(searchTerm)))
+          .toList();
+    });
   }
 
   @override
@@ -121,7 +177,7 @@ class _SongsDataView extends State<SongsView> {
                       child: Center(
                           child: SizedBox(
                         child: FutureBuilder<List<Songs?>>(
-                          future: listSongs(),
+                          future: Future.value(_filteredSongs),
                           builder: (context, snapshot) {
                             if (snapshot.connectionState ==
                                 ConnectionState.waiting) {
@@ -156,8 +212,8 @@ class _SongsDataView extends State<SongsView> {
                                   columns: const [
                                     DataColumn(label: Text('Title')),
                                     DataColumn(label: Text('Artist')),
-                                    //DataColumn(label: Text('Album')),
-                                    //DataColumn(label: Text('Genre')),
+                                    DataColumn(label: Text('Album')),
+                                    DataColumn(label: Text('Genre')),
                                     DataColumn(label: Text('Duration')),
                                     DataColumn(label: Text('File Type')),
                                     DataColumn(
@@ -222,52 +278,103 @@ class _SongsDataView extends State<SongsView> {
       children: [
         const Text(
           'Song List',
-          style: TextStyle(
-            fontSize: 15,
-          ),
+          style: TextStyle(fontSize: 15),
         ),
         Row(
           children: [
-            // Sort Button
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.black,
+            // Combined sort dropdown
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
+                borderRadius: BorderRadius.circular(4),
               ),
-              onPressed: () {
-                // Implement sorting functionality
-              },
-              child: const Icon(Icons.sort),
+              child: DropdownButton<(SortField, bool)>(
+                value: (_currentSortField, _isAscending),
+                underline: const SizedBox(),
+                items: [
+                  for (var field in SortField.values) ...[
+                    DropdownMenuItem(
+                      value: (field, true),
+                      child: Row(
+                        children: [
+                          Text('Sort by ${field.label} '),
+                          const Icon(Icons.arrow_upward, size: 16),
+                        ],
+                      ),
+                    ),
+                    DropdownMenuItem(
+                      value: (field, false),
+                      child: Row(
+                        children: [
+                          Text('Sort by ${field.label} '),
+                          const Icon(Icons.arrow_downward, size: 16),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+                onChanged: ((SortField, bool)? value) async {
+                  if (value != null) {
+                    setState(() {
+                      _currentSortField = value.$1;
+                      _isAscending = value.$2;
+                    });
+                    await _sortSongs();
+                  }
+                },
+              ),
             ),
+            const SizedBox(width: 16),
             // Add Button
-            TextButton(
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.black,
-              ),
+            IconButton(
+              icon: const Icon(Icons.add),
               onPressed: () {
                 Navigator.push(
                     context,
                     MaterialPageRoute(
                         builder: (context) => const SongUploadManager()));
               },
-              child: const Icon(Icons.add),
             ),
+            const SizedBox(width: 16),
             // Search field
             SizedBox(
               width: 180,
               child: TextField(
-                controller: null,
+                controller: _searchController,
                 decoration: const InputDecoration(
                   labelText: 'Search',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.search),
                 ),
-                onChanged: (_) => setState(() {}),
+                onChanged: _onSearchChanged,
               ),
             ),
           ],
         ),
       ],
     );
+  }
+
+  Future<void> _sortSongs() async {
+    final songs = await queryListItems();
+    setState(() {
+      _allSongs = songs
+        ..sort((a, b) {
+          if (a == null || b == null) return 0;
+          switch (_currentSortField) {
+            case SortField.title:
+              return _isAscending
+                  ? a.title.compareTo(b.title)
+                  : b.title.compareTo(a.title);
+            case SortField.date:
+              return _isAscending
+                  ? a.createdAt!.compareTo(b.createdAt!)
+                  : b.createdAt!.compareTo(a.createdAt!);
+          }
+        });
+      _filteredSongs = _allSongs;
+    });
   }
 }
 
@@ -285,9 +392,9 @@ class SongsDataSource extends DataTableSource {
     return DataRow(cells: [
       DataCell(Text(song?.title ?? 'No title')),
       DataCell(Text(song?.artist ?? 'Unknown artist')),
-      //DataCell(Text(song?.album ?? 'No album')),
-      //DataCell(Text(song?.genre ?? 'No genre')),
-      DataCell(Text(song?.duration?.toString() ?? '0:00')),
+      DataCell(Text(song?.album ?? 'No album')),
+      DataCell(Text(song?.genre ?? 'No genre')),
+      DataCell(Text(formatDuration(song?.duration ?? 0))),
       DataCell(Text(song?.fileType ?? 'No file')),
       DataCell(
         SizedBox(
