@@ -5,7 +5,6 @@ import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'package:flutter/material.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
-// import 'package:fyp_musicapp_admin/auth/amplifyconfiguration.dart';
 import 'package:fyp_musicapp_admin/pages/home_page.dart';
 import 'package:fyp_musicapp_admin/theme/app_color.dart';
 import 'amplifyconfiguration.dart';

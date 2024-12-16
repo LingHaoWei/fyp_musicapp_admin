@@ -32,7 +32,6 @@ class Songs extends amplify_core.Model {
   final int? _duration;
   final String? _fileType;
   final String? _genre;
-  final amplify_core.TemporalDateTime? _uploadAt;
   final amplify_core.TemporalDateTime? _createdAt;
   final amplify_core.TemporalDateTime? _updatedAt;
 
@@ -48,34 +47,16 @@ class Songs extends amplify_core.Model {
     return SongsModelIdentifier(id: id);
   }
 
-  String get title {
-    try {
-      return _title!;
-    } catch (e) {
-      throw amplify_core.AmplifyCodeGenModelException(
-          amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastExceptionMessage,
-          recoverySuggestion: amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastRecoverySuggestion,
-          underlyingException: e.toString());
-    }
+  String? get title {
+    return _title;
   }
 
   String? get artist {
     return _artist;
   }
 
-  String get album {
-    try {
-      return _album!;
-    } catch (e) {
-      throw amplify_core.AmplifyCodeGenModelException(
-          amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastExceptionMessage,
-          recoverySuggestion: amplify_core.AmplifyExceptionMessages
-              .codeGenRequiredFieldForceCastRecoverySuggestion,
-          underlyingException: e.toString());
-    }
+  String? get album {
+    return _album;
   }
 
   int? get duration {
@@ -90,10 +71,6 @@ class Songs extends amplify_core.Model {
     return _genre;
   }
 
-  amplify_core.TemporalDateTime? get uploadAt {
-    return _uploadAt;
-  }
-
   amplify_core.TemporalDateTime? get createdAt {
     return _createdAt;
   }
@@ -104,13 +81,12 @@ class Songs extends amplify_core.Model {
 
   const Songs._internal(
       {required this.id,
-      required title,
+      title,
       artist,
-      required album,
+      album,
       duration,
       fileType,
       genre,
-      uploadAt,
       createdAt,
       updatedAt})
       : _title = title,
@@ -119,19 +95,17 @@ class Songs extends amplify_core.Model {
         _duration = duration,
         _fileType = fileType,
         _genre = genre,
-        _uploadAt = uploadAt,
         _createdAt = createdAt,
         _updatedAt = updatedAt;
 
   factory Songs(
       {String? id,
-      required String title,
+      String? title,
       String? artist,
-      required String album,
+      String? album,
       int? duration,
       String? fileType,
-      String? genre,
-      amplify_core.TemporalDateTime? uploadAt}) {
+      String? genre}) {
     return Songs._internal(
         id: id == null ? amplify_core.UUID.getUUID() : id,
         title: title,
@@ -139,8 +113,7 @@ class Songs extends amplify_core.Model {
         album: album,
         duration: duration,
         fileType: fileType,
-        genre: genre,
-        uploadAt: uploadAt);
+        genre: genre);
   }
 
   bool equals(Object other) {
@@ -157,8 +130,7 @@ class Songs extends amplify_core.Model {
         _album == other._album &&
         _duration == other._duration &&
         _fileType == other._fileType &&
-        _genre == other._genre &&
-        _uploadAt == other._uploadAt;
+        _genre == other._genre;
   }
 
   @override
@@ -178,8 +150,6 @@ class Songs extends amplify_core.Model {
         ", ");
     buffer.write("fileType=" + "$_fileType" + ", ");
     buffer.write("genre=" + "$_genre" + ", ");
-    buffer.write(
-        "uploadAt=" + (_uploadAt != null ? _uploadAt.format() : "null") + ", ");
     buffer.write("createdAt=" +
         (_createdAt != null ? _createdAt.format() : "null") +
         ", ");
@@ -196,8 +166,7 @@ class Songs extends amplify_core.Model {
       String? album,
       int? duration,
       String? fileType,
-      String? genre,
-      amplify_core.TemporalDateTime? uploadAt}) {
+      String? genre}) {
     return Songs._internal(
         id: id,
         title: title ?? this.title,
@@ -205,18 +174,16 @@ class Songs extends amplify_core.Model {
         album: album ?? this.album,
         duration: duration ?? this.duration,
         fileType: fileType ?? this.fileType,
-        genre: genre ?? this.genre,
-        uploadAt: uploadAt ?? this.uploadAt);
+        genre: genre ?? this.genre);
   }
 
   Songs copyWithModelFieldValues(
-      {ModelFieldValue<String>? title,
+      {ModelFieldValue<String?>? title,
       ModelFieldValue<String?>? artist,
-      ModelFieldValue<String>? album,
+      ModelFieldValue<String?>? album,
       ModelFieldValue<int?>? duration,
       ModelFieldValue<String?>? fileType,
-      ModelFieldValue<String?>? genre,
-      ModelFieldValue<amplify_core.TemporalDateTime?>? uploadAt}) {
+      ModelFieldValue<String?>? genre}) {
     return Songs._internal(
         id: id,
         title: title == null ? this.title : title.value,
@@ -224,8 +191,7 @@ class Songs extends amplify_core.Model {
         album: album == null ? this.album : album.value,
         duration: duration == null ? this.duration : duration.value,
         fileType: fileType == null ? this.fileType : fileType.value,
-        genre: genre == null ? this.genre : genre.value,
-        uploadAt: uploadAt == null ? this.uploadAt : uploadAt.value);
+        genre: genre == null ? this.genre : genre.value);
   }
 
   Songs.fromJson(Map<String, dynamic> json)
@@ -236,9 +202,6 @@ class Songs extends amplify_core.Model {
         _duration = (json['duration'] as num?)?.toInt(),
         _fileType = json['fileType'],
         _genre = json['genre'],
-        _uploadAt = json['uploadAt'] != null
-            ? amplify_core.TemporalDateTime.fromString(json['uploadAt'])
-            : null,
         _createdAt = json['createdAt'] != null
             ? amplify_core.TemporalDateTime.fromString(json['createdAt'])
             : null,
@@ -254,7 +217,6 @@ class Songs extends amplify_core.Model {
         'duration': _duration,
         'fileType': _fileType,
         'genre': _genre,
-        'uploadAt': _uploadAt?.format(),
         'createdAt': _createdAt?.format(),
         'updatedAt': _updatedAt?.format()
       };
@@ -267,7 +229,6 @@ class Songs extends amplify_core.Model {
         'duration': _duration,
         'fileType': _fileType,
         'genre': _genre,
-        'uploadAt': _uploadAt,
         'createdAt': _createdAt,
         'updatedAt': _updatedAt
       };
@@ -282,7 +243,6 @@ class Songs extends amplify_core.Model {
   static final DURATION = amplify_core.QueryField(fieldName: "duration");
   static final FILETYPE = amplify_core.QueryField(fieldName: "fileType");
   static final GENRE = amplify_core.QueryField(fieldName: "genre");
-  static final UPLOADAT = amplify_core.QueryField(fieldName: "uploadAt");
   static var schema = amplify_core.Model.defineSchema(
       define: (amplify_core.ModelSchemaDefinition modelSchemaDefinition) {
     modelSchemaDefinition.name = "Songs";
@@ -290,10 +250,7 @@ class Songs extends amplify_core.Model {
 
     modelSchemaDefinition.authRules = [
       amplify_core.AuthRule(
-          authStrategy: amplify_core.AuthStrategy.OWNER,
-          ownerField: "owner",
-          identityClaim: "cognito:username",
-          provider: amplify_core.AuthRuleProvider.USERPOOLS,
+          authStrategy: amplify_core.AuthStrategy.PRIVATE,
           operations: const [
             amplify_core.ModelOperation.CREATE,
             amplify_core.ModelOperation.UPDATE,
@@ -306,7 +263,7 @@ class Songs extends amplify_core.Model {
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
         key: Songs.TITLE,
-        isRequired: true,
+        isRequired: false,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
 
@@ -318,7 +275,7 @@ class Songs extends amplify_core.Model {
 
     modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
         key: Songs.ALBUM,
-        isRequired: true,
+        isRequired: false,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
 
@@ -339,12 +296,6 @@ class Songs extends amplify_core.Model {
         isRequired: false,
         ofType: amplify_core.ModelFieldType(
             amplify_core.ModelFieldTypeEnum.string)));
-
-    modelSchemaDefinition.addField(amplify_core.ModelFieldDefinition.field(
-        key: Songs.UPLOADAT,
-        isRequired: false,
-        ofType: amplify_core.ModelFieldType(
-            amplify_core.ModelFieldTypeEnum.dateTime)));
 
     modelSchemaDefinition.addField(
         amplify_core.ModelFieldDefinition.nonQueryField(

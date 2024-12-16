@@ -8,6 +8,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter/services.dart'; // For TextInputFormatters
+import 'package:fyp_musicapp_admin/pages/home_page.dart';
 
 // Add this at the top of the file with other constants
 const List<String> musicGenres = [
@@ -60,6 +61,7 @@ class SongUpload {
   String? artist;
   String? album;
   String? genre;
+  String? fileType;
   int? duration;
   TextEditingController artistController = TextEditingController();
   TextEditingController albumController = TextEditingController();
@@ -77,6 +79,7 @@ class SongUpload {
     this.album,
     this.genre = 'Pop',
     this.duration = 0,
+    this.fileType,
   }) {
     artistController.text = artist ?? '';
     albumController.text = album ?? '';
@@ -116,22 +119,37 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final newSongs = result.files.where((file) {
-          // Add validation for file stream
-          if (file.readStream == null) {
-            _showErrorSnackBar('Cannot read file: ${file.name}');
-            return false;
-          }
-          return true;
-        }).map((file) {
-          final s3Key = 'public/${file.name}';
-          return SongUpload(
-            platformFile: file,
-            name: file.name,
-            size: file.size,
-            metadata: SongMetadata(s3Key: s3Key),
-          );
-        }).toList();
+        final newSongs = result.files
+            .where((file) {
+              // Add validation for file stream
+              if (file.readStream == null) {
+                _showErrorSnackBar('Cannot read file: ${file.name}');
+                return false;
+              }
+              return true;
+            })
+            .map((file) {
+              // Get file extension and validate
+              final extension = file.name.split('.').last.toLowerCase();
+              if (!['mp3', 'flac'].contains(extension)) {
+                _showErrorSnackBar('Invalid file type: ${file.name}');
+                return null;
+              }
+
+              // Create s3Key with extension-based folder structure
+              final s3Key = 'public/songs/$extension/${file.name}';
+
+              return SongUpload(
+                platformFile: file,
+                name: file.name,
+                size: file.size,
+                metadata: SongMetadata(s3Key: s3Key),
+                fileType: extension,
+              );
+            })
+            .where((song) => song != null) // Filter out null entries
+            .cast<SongUpload>() // Cast to correct type
+            .toList();
 
         if (newSongs.isNotEmpty) {
           setState(() {
@@ -144,8 +162,25 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     }
   }
 
-  // Upload single song
+  // Update the validation method to exclude duration
+  bool _validateSongFields(SongUpload song) {
+    if (song.artistController.text.trim().isEmpty) {
+      _showErrorSnackBar('Artist name is required for "${song.name}"');
+      return false;
+    }
+    if (song.albumController.text.trim().isEmpty) {
+      _showErrorSnackBar('Album name is required for "${song.name}"');
+      return false;
+    }
+    return true;
+  }
+
+  // Modify uploadSong method to include validation
   Future<void> uploadSong(SongUpload song) async {
+    if (!_validateSongFields(song)) {
+      return;
+    }
+
     try {
       setState(() {
         song.uploadStatus = 'uploading';
@@ -200,6 +235,7 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       SongUpload song, Stream<List<int>> fileStream) async {
     final int totalChunks = (song.size / chunkSize).ceil();
     final chunks = _splitStreamIntoChunks(fileStream, chunkSize);
+    final contentType = _getContentType(song.name);
     int uploadedChunks = 0;
     int totalBytesUploaded = 0;
 
@@ -217,6 +253,7 @@ class _SongUploadManagerState extends State<SongUploadManager> {
             path: StoragePath.fromString(chunkKey),
             options: StorageUploadFileOptions(
               metadata: {
+                'Content-Type': contentType,
                 'chunkNumber': '$chunkNumber',
                 'totalChunks': '$totalChunks',
                 'originalKey': song.metadata.s3Key,
@@ -273,9 +310,24 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     }
   }
 
+  // Add this helper function at the class level
+  String _getContentType(String fileName) {
+    final extension = fileName.toLowerCase().split('.').last;
+    switch (extension) {
+      case 'mp3':
+        return 'audio/mpeg';
+      case 'flac':
+        return 'audio/flac';
+      default:
+        return 'audio/mpeg'; // default fallback
+    }
+  }
+
   // Helper method for regular single-file upload
   Future<void> _uploadSingleFile(
       SongUpload song, Stream<List<int>> fileStream) async {
+    final contentType = _getContentType(song.name);
+
     await Amplify.Storage.uploadFile(
       localFile: AWSFile.fromStream(
         fileStream,
@@ -288,6 +340,9 @@ class _SongUploadManagerState extends State<SongUploadManager> {
         });
       },
       options: StorageUploadFileOptions(
+        metadata: {
+          'Content-Type': contentType,
+        },
         pluginOptions: S3UploadFilePluginOptions(
           getProperties: true,
         ),
@@ -313,10 +368,20 @@ class _SongUploadManagerState extends State<SongUploadManager> {
         completeFile.addAll(result.bytes);
       }
 
-      // Upload the complete file
+      // Upload the complete file with proper content type
+      final contentType = _getContentType(song.name);
+
       await Amplify.Storage.uploadFile(
         localFile: AWSFile.fromData(completeFile),
         path: StoragePath.fromString(song.metadata.s3Key),
+        options: StorageUploadFileOptions(
+          metadata: {
+            'Content-Type': contentType,
+          },
+          pluginOptions: S3UploadFilePluginOptions(
+            getProperties: true,
+          ),
+        ),
       ).result;
 
       // Clean up chunk files
@@ -343,12 +408,15 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       for (var song in pendingSongs) {
         await uploadSong(song);
       }
-      // Only remove successful uploads
+      // Only remove successful uploads from the list
       setState(() {
         songs.removeWhere((song) => song.uploadStatus == 'success');
       });
       // Show success message after all uploads complete
       _showSuccessSnackBar('All songs uploaded successfully!');
+
+      // Remove the auto-navigation code
+      // The user will need to press the back button to return
     } finally {
       setState(() {
         uploading = false;
@@ -384,17 +452,17 @@ class _SongUploadManagerState extends State<SongUploadManager> {
   Future<void> createSongs(SongUpload song) async {
     try {
       final model = Songs(
-          title: song.name,
-          artist: song.artistController.text.isNotEmpty
-              ? song.artistController.text
-              : "Unknown Artist",
-          album: song.albumController.text.isNotEmpty
-              ? song.albumController.text
-              : "Unknown Album",
-          duration: parseDurationToSeconds(song.durationController.text),
-          fileType: song.name.split('.').last,
-          genre: song.genre ?? "Pop",
-          uploadAt: TemporalDateTime.now());
+        title: song.name,
+        artist: song.artistController.text.isNotEmpty
+            ? song.artistController.text
+            : "Unknown Artist",
+        album: song.albumController.text.isNotEmpty
+            ? song.albumController.text
+            : "Unknown Album",
+        duration: parseDurationToSeconds(song.durationController.text),
+        fileType: song.fileType,
+        genre: song.genre ?? "Pop",
+      );
 
       final request = ModelMutations.create(model);
       final response = await Amplify.API.mutate(request: request).response;
@@ -402,9 +470,12 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       final createdSong = response.data;
       if (createdSong == null) {
         safePrint('errors: ${response.errors}');
-        return;
+        throw Exception('Failed to create song record');
       }
       safePrint('Mutation result: ${createdSong.id}');
+
+      // Add a small delay to ensure the data is properly synchronized
+      await Future.delayed(const Duration(seconds: 1));
     } on ApiException catch (e) {
       safePrint('Mutation failed: $e');
       rethrow;
@@ -418,7 +489,9 @@ class _SongUploadManagerState extends State<SongUploadManager> {
         backgroundColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () => Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const HomePage()),
+          ),
         ),
         title: const Text('Upload Songs'),
       ),
@@ -518,6 +591,11 @@ class _SongUploadManagerState extends State<SongUploadManager> {
                                       decoration: InputDecoration(
                                         hintText: 'Enter artist name',
                                         border: InputBorder.none,
+                                        errorText: song.artistController.text
+                                                .trim()
+                                                .isEmpty
+                                            ? 'Required'
+                                            : null,
                                       ),
                                       onChanged: (value) {
                                         setState(() {
@@ -532,6 +610,11 @@ class _SongUploadManagerState extends State<SongUploadManager> {
                                       decoration: InputDecoration(
                                         hintText: 'Enter album name',
                                         border: InputBorder.none,
+                                        errorText: song.albumController.text
+                                                .trim()
+                                                .isEmpty
+                                            ? 'Required'
+                                            : null,
                                       ),
                                       onChanged: (value) {
                                         setState(() {

@@ -46,45 +46,36 @@ class _SongsDataView extends State<SongsView> {
     setState(() {});
   }
 
-  /// Fetches a list of songs from the data store using Amplify API.
   Future<List<Songs?>> listSongs() async {
     try {
       final request = ModelQueries.list(Songs.classType);
       final response = await Amplify.API.query(request: request).response;
-
+      safePrint('Raw Response: ${response.toString()}');
       final items = response.data?.items;
       if (items == null) {
-        print('errors: ${response.errors}');
+        debugPrint('errors: ${response.errors}');
         return <Songs?>[];
       }
       return items;
     } on ApiException catch (e) {
-      print('Query failed: $e');
-    }
-    return <Songs?>[];
-  }
-
-  Future<List<Songs?>> queryListItems() async {
-    try {
-      final request = ModelQueries.list(Songs.classType);
-      final response = await Amplify.API.query(request: request).response;
-
-      final items = response.data?.items;
-      if (items == null) {
-        print('errors: ${response.errors}');
-        return <Songs?>[];
-      }
-      return items;
-    } on ApiException catch (e) {
-      print('Query failed: $e');
+      debugPrint('Query failed: $e');
     }
     return <Songs?>[];
   }
 
   Future<void> deleteSongs(Songs modelToDelete) async {
-    final request = ModelMutations.delete(modelToDelete);
-    final response = await Amplify.API.mutate(request: request).response;
-    print('Response: $response');
+    try {
+      final request = ModelMutations.delete(modelToDelete);
+      final response = await Amplify.API.mutate(request: request).response;
+      print('Response: $response');
+
+      if (response.errors.isNotEmpty) {
+        throw Exception(response.errors.first.message);
+      }
+    } catch (e) {
+      print('Error deleting song: $e');
+      rethrow;
+    }
   }
 
   Future<void> deleteFilePublic(String fileName) async {
@@ -102,8 +93,10 @@ class _SongsDataView extends State<SongsView> {
       _filteredSongs = _allSongs
           .where((song) =>
               song != null &&
-              (song.title.toLowerCase().contains(searchTerm) ||
-                  song.fileType!.toLowerCase().contains(searchTerm)))
+              ((song.title?.toLowerCase() ?? '').contains(searchTerm) ||
+                  (song.artist?.toLowerCase() ?? '').contains(searchTerm) ||
+                  (song.album?.toLowerCase() ?? '').contains(searchTerm) ||
+                  (song.genre?.toLowerCase() ?? '').contains(searchTerm)))
           .toList();
     });
   }
@@ -179,18 +172,6 @@ class _SongsDataView extends State<SongsView> {
                         child: FutureBuilder<List<Songs?>>(
                           future: Future.value(_filteredSongs),
                           builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: SizedBox(
-                                  width: 30,
-                                  height: 30,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.0,
-                                  ),
-                                ),
-                              );
-                            }
                             if (snapshot.hasError) {
                               return Center(
                                   child: Text('Error: ${snapshot.error}'));
@@ -226,12 +207,16 @@ class _SongsDataView extends State<SongsView> {
                                     onDelete: (song) async {
                                       try {
                                         // Extract filename from audio URL/path
-                                        final fileName = "public/${song.title}";
+                                        final fileName =
+                                            "public/songs/${song.fileType}/${song.title}";
                                         await deleteFilePublic(fileName);
 
                                         // Then delete from database
                                         await deleteSongs(song);
-                                        setState(() {}); // Refresh the list
+
+                                        // Add these lines to reload the songs
+                                        await _loadSongs(); // Reload the songs list
+                                        setState(() {}); // Refresh the UI
 
                                         if (context.mounted) {
                                           ScaffoldMessenger.of(context)
@@ -357,7 +342,7 @@ class _SongsDataView extends State<SongsView> {
   }
 
   Future<void> _sortSongs() async {
-    final songs = await queryListItems();
+    final songs = await listSongs();
     setState(() {
       _allSongs = songs
         ..sort((a, b) {
@@ -365,8 +350,8 @@ class _SongsDataView extends State<SongsView> {
           switch (_currentSortField) {
             case SortField.title:
               return _isAscending
-                  ? a.title.compareTo(b.title)
-                  : b.title.compareTo(a.title);
+                  ? (a.title ?? '').compareTo(b.title ?? '')
+                  : (b.title ?? '').compareTo(a.title ?? '');
             case SortField.date:
               return _isAscending
                   ? a.createdAt!.compareTo(b.createdAt!)
@@ -375,6 +360,12 @@ class _SongsDataView extends State<SongsView> {
         });
       _filteredSongs = _allSongs;
     });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 }
 

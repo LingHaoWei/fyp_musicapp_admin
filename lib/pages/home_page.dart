@@ -6,6 +6,7 @@ import 'package:fyp_musicapp_admin/main.dart';
 import 'package:fyp_musicapp_admin/theme/app_color.dart';
 import 'package:fyp_musicapp_admin/views/songs_view.dart';
 import 'package:fyp_musicapp_admin/views/users_view.dart';
+import 'package:fyp_musicapp_admin/views/images_view.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -46,8 +47,9 @@ class _AdminHomePageState extends State<AdminHomePage> {
   int _selectedIndex = 0;
 
   final List<Widget> _pages = [
-    SongsView(),
-    UsersView(),
+    SongsView(key: PageStorageKey('songs')),
+    ImagesView(key: PageStorageKey('images')),
+    UsersView(key: PageStorageKey('users')),
   ];
 
   Future<void> _signOut(BuildContext context) async {
@@ -92,7 +94,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                     SizedBox(height: 10),
                     Image.asset('images/logo.png', width: 50),
                     SizedBox(width: 10),
-                    Text('LiMU'),
+                    Text('LiMU', style: TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -100,19 +102,25 @@ class _AdminHomePageState extends State<AdminHomePage> {
               // Navigation
               destinations: const [
                 NavigationRailDestination(
-                  icon: Icon(Icons.people),
+                  icon: Icon(Icons.music_note),
                   label: Text('Song'),
                 ),
                 NavigationRailDestination(
-                  icon: Icon(Icons.music_note),
+                  icon: Icon(Icons.image),
+                  label: Text('Images'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.people),
                   label: Text('User'),
                 ),
               ],
               selectedIndex: _selectedIndex,
               onDestinationSelected: (int index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
+                if (mounted) {
+                  setState(() {
+                    _selectedIndex = index;
+                  });
+                }
               },
 
               // Sign out
