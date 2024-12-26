@@ -307,8 +307,9 @@ class S3ImagesDataSource extends DataTableSource {
 
   void _showDeleteDialog(StorageItem item) {
     final fileName = item.path.split('/').last;
+    final currentContext = context;
     showDialog(
-      context: context,
+      context: currentContext,
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Delete Image'),
@@ -328,9 +329,12 @@ class S3ImagesDataSource extends DataTableSource {
             ),
             TextButton(
               child: const Text('Delete', style: TextStyle(color: Colors.red)),
-              onPressed: () {
-                deleteFilePublic(item.path);
+              onPressed: () async {
                 Navigator.of(context).pop();
+                await deleteFilePublic(item.path);
+                if (currentContext.mounted) {
+                  Navigator.of(currentContext).pop();
+                }
               },
             ),
           ],

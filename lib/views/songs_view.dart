@@ -2,9 +2,26 @@
 
 import 'package:amplify_api/amplify_api.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:fyp_musicapp_admin/manager/song_upload_manager.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
+
+const List<String> musicGenres = [
+  'Pop',
+  'Rock',
+  'Hip Hop',
+  'R&B',
+  'Jazz',
+  'Classical',
+  'Electronic',
+  'Country',
+  'Blues',
+  'Folk',
+  'Metal',
+  'Reggae',
+  'Other'
+];
 
 String formatDuration(int seconds) {
   int minutes = seconds ~/ 60;
@@ -205,21 +222,16 @@ class _SongsDataView extends State<SongsView> {
                                     snapshot.data!,
                                     context: context,
                                     onDelete: (song) async {
+                                      final currentContext = context;
                                       try {
-                                        // Extract filename from audio URL/path
                                         final fileName =
                                             "public/songs/${song.fileType}/${song.title}";
                                         await deleteFilePublic(fileName);
-
-                                        // Then delete from database
                                         await deleteSongs(song);
+                                        await _loadSongs();
 
-                                        // Add these lines to reload the songs
-                                        await _loadSongs(); // Reload the songs list
-                                        setState(() {}); // Refresh the UI
-
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
+                                        if (currentContext.mounted) {
+                                          ScaffoldMessenger.of(currentContext)
                                               .showSnackBar(
                                             const SnackBar(
                                               content: Text(
@@ -229,12 +241,52 @@ class _SongsDataView extends State<SongsView> {
                                           );
                                         }
                                       } catch (e) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
+                                        if (currentContext.mounted) {
+                                          ScaffoldMessenger.of(currentContext)
                                               .showSnackBar(
                                             SnackBar(
                                               content: Text(
                                                   'Error deleting song: $e'),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                    },
+                                    onUpdate: (song) async {
+                                      final currentContext = context;
+                                      try {
+                                        final request =
+                                            ModelMutations.update(song);
+                                        final response = await Amplify.API
+                                            .mutate(request: request)
+                                            .response;
+
+                                        if (response.errors.isNotEmpty) {
+                                          throw Exception(
+                                              response.errors.first.message);
+                                        }
+
+                                        await _loadSongs();
+                                        setState(() {});
+
+                                        if (currentContext.mounted) {
+                                          ScaffoldMessenger.of(currentContext)
+                                              .showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                  'Song updated successfully'),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        }
+                                      } catch (e) {
+                                        if (currentContext.mounted) {
+                                          ScaffoldMessenger.of(currentContext)
+                                              .showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                  'Error updating song: $e'),
                                               backgroundColor: Colors.red,
                                             ),
                                           );
@@ -372,9 +424,15 @@ class _SongsDataView extends State<SongsView> {
 class SongsDataSource extends DataTableSource {
   final List<Songs?> _songs;
   final Function(Songs) onDelete;
+  final Function(Songs) onUpdate;
   final BuildContext context;
 
-  SongsDataSource(this._songs, {required this.onDelete, required this.context});
+  SongsDataSource(
+    this._songs, {
+    required this.onDelete,
+    required this.onUpdate,
+    required this.context,
+  });
 
   @override
   DataRow? getRow(int index) {
@@ -394,9 +452,7 @@ class SongsDataSource extends DataTableSource {
             children: [
               IconButton(
                 icon: const Icon(Icons.edit),
-                onPressed: () {
-                  // Edit functionality
-                },
+                onPressed: song == null ? null : () => _showEditDialog(song),
               ),
               IconButton(
                 icon: const Icon(Icons.delete),
@@ -437,6 +493,257 @@ class SongsDataSource extends DataTableSource {
         );
       },
     );
+  }
+
+  Future<void> _showEditDialog(Songs song) async {
+    final formKey = GlobalKey<FormState>();
+    final artistController = TextEditingController(text: song.artist ?? '');
+    final albumController = TextEditingController(text: song.album ?? '');
+    final genreController = TextEditingController(text: song.genre ?? '');
+    final durationController =
+        TextEditingController(text: formatDuration(song.duration ?? 0));
+    int currentDuration = song.duration ?? 0;
+
+    void showEditDialogWithDuration(int newDuration) {
+      currentDuration = newDuration;
+      _showEditDialog(song.copyWith(duration: newDuration));
+    }
+
+    try {
+      return await showDialog(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text('Edit "${song.title}"'),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: artistController,
+                      decoration: const InputDecoration(labelText: 'Artist'),
+                    ),
+                    TextFormField(
+                      controller: albumController,
+                      decoration: const InputDecoration(labelText: 'Album'),
+                    ),
+                    DropdownButtonFormField<String>(
+                      value: genreController.text.isEmpty
+                          ? 'Pop'
+                          : genreController.text,
+                      decoration: const InputDecoration(labelText: 'Genre'),
+                      items: musicGenres.map((String value) {
+                        return DropdownMenuItem<String>(
+                          value: value,
+                          child: Text(value),
+                        );
+                      }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          genreController.text = newValue;
+                        }
+                      },
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: durationController,
+                            decoration:
+                                const InputDecoration(labelText: 'Duration'),
+                            readOnly: true,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.access_time),
+                          onPressed: () async {
+                            Navigator.of(context).pop();
+                            final newDuration =
+                                await _showDurationPicker(currentDuration);
+                            if (newDuration != null) {
+                              showEditDialogWithDuration(newDuration);
+                            } else {
+                              _showEditDialog(song);
+                            }
+                          },
+                          tooltip: 'Pick duration',
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                child: const Text('Cancel'),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              TextButton(
+                child: const Text('Save'),
+                onPressed: () async {
+                  final updatedSong = song.copyWith(
+                    artist: artistController.text,
+                    album: albumController.text,
+                    genre: genreController.text,
+                    duration: currentDuration,
+                  );
+                  Navigator.of(context).pop();
+                  await _updateSong(updatedSong);
+                },
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      artistController.dispose();
+      albumController.dispose();
+      genreController.dispose();
+      durationController.dispose();
+    }
+  }
+
+  Future<void> _updateSong(Songs updatedSong) async {
+    final currentContext = context;
+    try {
+      final request = ModelMutations.update(updatedSong);
+      final response = await Amplify.API.mutate(request: request).response;
+
+      if (response.errors.isNotEmpty) {
+        throw Exception(response.errors.first.message);
+      }
+
+      onUpdate(updatedSong);
+      notifyListeners();
+
+      if (currentContext.mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          const SnackBar(
+            content: Text('Song updated successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (currentContext.mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Error updating song: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<int?> _showDurationPicker(int currentDuration) async {
+    int minutes = currentDuration ~/ 60;
+    int seconds = currentDuration % 60;
+    int? result;
+
+    await showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Set Duration'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Minutes'),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 60,
+                            child: TextField(
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              controller: TextEditingController(
+                                  text: minutes.toString()),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              onChanged: (value) {
+                                minutes = int.tryParse(value) ?? 0;
+                              },
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(':', style: TextStyle(fontSize: 20)),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Seconds'),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 60,
+                            child: TextField(
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              controller: TextEditingController(
+                                  text: seconds.toString()),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              onChanged: (value) {
+                                seconds = int.tryParse(value) ?? 0;
+                                if (seconds > 59) {
+                                  seconds = 59;
+                                }
+                              },
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Set'),
+              onPressed: () {
+                result = (minutes * 60) + seconds;
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+
+    return result;
   }
 
   @override

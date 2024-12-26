@@ -342,12 +342,6 @@ class UsersDataSource extends DataTableSource {
           child: Row(
             children: [
               IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: () {
-                  // Edit functionality
-                },
-              ),
-              IconButton(
                 icon: const Icon(Icons.delete),
                 onPressed: () => _showDeleteDialog(user),
               ),

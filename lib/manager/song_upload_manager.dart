@@ -4,11 +4,13 @@ import 'package:amplify_api/amplify_api.dart';
 import 'package:amplify_flutter/amplify_flutter.dart';
 import 'package:amplify_storage_s3/amplify_storage_s3.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:fyp_musicapp_admin/models/ModelProvider.dart';
 import 'package:uuid/uuid.dart';
-import 'package:flutter/services.dart'; // For TextInputFormatters
+import 'package:flutter/services.dart';
 import 'package:fyp_musicapp_admin/pages/home_page.dart';
+import 'package:just_audio/just_audio.dart';
 
 // Add this at the top of the file with other constants
 const List<String> musicGenres = [
@@ -119,41 +121,54 @@ class _SongUploadManagerState extends State<SongUploadManager> {
       );
 
       if (result != null && result.files.isNotEmpty) {
-        final newSongs = result.files
-            .where((file) {
-              // Add validation for file stream
-              if (file.readStream == null) {
-                _showErrorSnackBar('Cannot read file: ${file.name}');
-                return false;
-              }
-              return true;
-            })
-            .map((file) {
-              // Get file extension and validate
-              final extension = file.name.split('.').last.toLowerCase();
-              if (!['mp3', 'flac'].contains(extension)) {
-                _showErrorSnackBar('Invalid file type: ${file.name}');
-                return null;
-              }
+        for (var file in result.files) {
+          // Add validation for file stream
+          if (file.readStream == null) {
+            _showErrorSnackBar('Cannot read file: ${file.name}');
+            continue;
+          }
 
-              // Create s3Key with extension-based folder structure
-              final s3Key = 'public/songs/$extension/${file.name}';
+          // Get file extension and validate
+          final extension = file.name.split('.').last.toLowerCase();
+          if (!['mp3', 'flac'].contains(extension)) {
+            _showErrorSnackBar('Invalid file type: ${file.name}');
+            continue;
+          }
 
-              return SongUpload(
-                platformFile: file,
-                name: file.name,
-                size: file.size,
-                metadata: SongMetadata(s3Key: s3Key),
-                fileType: extension,
-              );
-            })
-            .where((song) => song != null) // Filter out null entries
-            .cast<SongUpload>() // Cast to correct type
-            .toList();
+          // Create s3Key with extension-based folder structure
+          final s3Key = 'public/songs/$extension/${file.name}';
 
-        if (newSongs.isNotEmpty) {
+          final songUpload = SongUpload(
+            platformFile: file,
+            name: file.name,
+            size: file.size,
+            metadata: SongMetadata(s3Key: s3Key),
+            fileType: extension,
+          );
+
+          if (kIsWeb) {
+            // For web, leave duration empty for manual input
+            songUpload.durationController.text = '';
+            debugPrint(
+                'Web platform: Duration will need to be entered manually');
+          } else {
+            // For desktop/mobile, try to read duration
+            try {
+              final player = AudioPlayer();
+              await player.setFilePath(file.path!);
+              await player.load();
+              final audioDuration = player.duration;
+              final duration = audioDuration?.inSeconds ?? 0;
+              songUpload.duration = duration;
+              songUpload.durationController.text = formatDuration(duration);
+              await player.dispose();
+            } catch (e) {
+              debugPrint('Error reading duration for ${file.name}: $e');
+            }
+          }
+
           setState(() {
-            songs.addAll(newSongs);
+            songs.add(songUpload);
           });
         }
       }
@@ -647,24 +662,27 @@ class _SongUploadManagerState extends State<SongUploadManager> {
                                   DataCell(_buildStatusCell(song)),
                                   DataCell(_buildProgressIndicator(song)),
                                   DataCell(
-                                    TextField(
-                                      controller: song.durationController,
-                                      decoration: InputDecoration(
-                                        hintText: 'MM:SS',
-                                        border: InputBorder.none,
-                                      ),
-                                      inputFormatters: [
-                                        FilteringTextInputFormatter.allow(RegExp(
-                                            r'[\d:]')), // Only allow numbers and colon
-                                        LengthLimitingTextInputFormatter(
-                                            5), // Limit to MM:SS format
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        SizedBox(
+                                          width: 80,
+                                          child: TextField(
+                                            controller: song.durationController,
+                                            decoration: const InputDecoration(
+                                              hintText: 'MM:SS',
+                                              border: InputBorder.none,
+                                            ),
+                                            readOnly: true,
+                                          ),
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.access_time),
+                                          onPressed: () =>
+                                              _showDurationPicker(song),
+                                          tooltip: 'Pick duration',
+                                        ),
                                       ],
-                                      onChanged: (value) {
-                                        setState(() {
-                                          song.duration =
-                                              parseDurationToSeconds(value);
-                                        });
-                                      },
                                     ),
                                   ),
                                 ],
@@ -771,6 +789,110 @@ class _SongUploadManagerState extends State<SongUploadManager> {
     }
     return 0;
   }
+
+  void _showDurationPicker(SongUpload song) {
+    int minutes = 0;
+    int seconds = 0;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Set Duration'),
+          content: StatefulBuilder(
+            builder: (BuildContext context, StateSetter setState) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Minutes'),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 60,
+                            child: TextField(
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              onChanged: (value) {
+                                minutes = int.tryParse(value) ?? 0;
+                              },
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(':', style: TextStyle(fontSize: 20)),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Text('Seconds'),
+                          const SizedBox(height: 8),
+                          SizedBox(
+                            width: 60,
+                            child: TextField(
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(2),
+                              ],
+                              onChanged: (value) {
+                                seconds = int.tryParse(value) ?? 0;
+                                if (seconds > 59) {
+                                  seconds = 59;
+                                }
+                              },
+                              decoration: const InputDecoration(
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Set'),
+              onPressed: () {
+                final totalSeconds = (minutes * 60) + seconds;
+                setState(() {
+                  song.duration = totalSeconds;
+                  song.durationController.text = formatDuration(totalSeconds);
+                });
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class StorageConfig {
@@ -778,4 +900,23 @@ class StorageConfig {
   static const int chunkSize = 10 * 1024 * 1024; // 10MB
   static const int maxRetries = 3;
   static const Duration retryDelay = Duration(seconds: 2);
+}
+
+// Add this class at the bottom of the file
+class BytesAudioSource extends StreamAudioSource {
+  final Uint8List bytes;
+  BytesAudioSource(this.bytes);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    start ??= 0;
+    end ??= bytes.length;
+    return StreamAudioResponse(
+      sourceLength: bytes.length,
+      contentLength: end - start,
+      offset: start,
+      stream: Stream.value(bytes.sublist(start, end)),
+      contentType: 'audio/mpeg',
+    );
+  }
 }
