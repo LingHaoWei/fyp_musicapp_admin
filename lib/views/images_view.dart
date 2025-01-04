@@ -81,14 +81,44 @@ class _ImagesDataView extends State<ImagesView> {
   }
 
   Future<void> deleteFilePublic(String fileName) async {
+    final currentContext = context;
     try {
+      debugPrint('Attempting to delete file: $fileName');
       await Amplify.Storage.remove(
         path: StoragePath.fromString(fileName),
       ).result;
       debugPrint('Deleted file: $fileName');
-      await _loadImages(); // Reload the list after deletion
+      if (!_isDisposed) {
+        await _loadImages();
+        if (currentContext.mounted) {
+          ScaffoldMessenger.of(currentContext).showSnackBar(
+            const SnackBar(
+              content: Text('Image deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
     } on StorageException catch (e) {
       debugPrint('Error deleting file: $e');
+      if (!_isDisposed && currentContext.mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Unexpected error: $e');
+      if (!_isDisposed && currentContext.mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Unexpected error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -227,7 +257,9 @@ class _ImagesDataView extends State<ImagesView> {
                 final currentContext = context;
                 try {
                   await deleteFilePublic(item.path);
-                  await _loadImages();
+                  if (!_isDisposed) {
+                    await _loadImages();
+                  }
 
                   if (currentContext.mounted) {
                     ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -252,6 +284,42 @@ class _ImagesDataView extends State<ImagesView> {
           ),
         ),
       ),
+    );
+  }
+
+  void _showDeleteDialog(StorageItem item) {
+    final fileName = item.path.split('/').last;
+    final currentContext = context;
+    showDialog(
+      context: currentContext,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Delete Image'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Are you sure you want to delete this image?'),
+              const SizedBox(height: 16),
+              Text(fileName,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xff202020))),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await deleteFilePublic(item.path);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -379,9 +447,6 @@ class S3ImagesDataSource extends DataTableSource {
               onPressed: () async {
                 Navigator.of(context).pop();
                 await deleteFilePublic(item.path);
-                if (currentContext.mounted) {
-                  Navigator.of(currentContext).pop();
-                }
               },
             ),
           ],
