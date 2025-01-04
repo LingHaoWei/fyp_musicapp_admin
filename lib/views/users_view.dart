@@ -26,6 +26,8 @@ class _UsersViewState extends State<UsersView> {
   List<Users?> _filteredUsers = [];
   SortField _currentSortField = SortField.username;
   bool _isAscending = true;
+  bool _isLoading = true;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -34,9 +36,28 @@ class _UsersViewState extends State<UsersView> {
   }
 
   Future<void> _loadUsers() async {
-    _allUsers = await listUsers();
-    _filteredUsers = _allUsers;
-    setState(() {});
+    if (_isDisposed) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final users = await listUsers();
+      if (_isDisposed) return;
+
+      setState(() {
+        _allUsers = users;
+        _filteredUsers = users;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (_isDisposed) return;
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint('Error loading users: $e');
+    }
   }
 
   Future<List<Users?>> listUsers() async {
@@ -82,13 +103,11 @@ class _UsersViewState extends State<UsersView> {
         mainAxisAlignment: MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const SizedBox(
-            child: Text(
-              'Users',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
+          const Text(
+            'Users',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
             ),
           ),
           const SizedBox(height: 24),
@@ -97,115 +116,21 @@ class _UsersViewState extends State<UsersView> {
             decoration: BoxDecoration(
               color: const Color(0xffF9F9F9),
               border: Border.all(color: const Color(0xffC5C5C5)),
-              borderRadius: const BorderRadius.all(Radius.circular(6.0)),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return _buildBar();
-              },
-            ),
+            child: _buildBar(),
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              child: SingleChildScrollView(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xffF9F9F9),
-                    border: Border.all(color: const Color(0xffC5C5C5)),
-                    borderRadius: const BorderRadius.all(Radius.circular(6.0)),
-                  ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(
-                      cardTheme: CardTheme(
-                        elevation: 0,
-                        color: const Color(0xffF9F9F9),
-                        margin: const EdgeInsets.all(0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                      ),
-                    ),
-                    child: Center(
-                      child: SizedBox(
-                        child: FutureBuilder<List<Users?>>(
-                          future: Future.value(_filteredUsers),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const Center(
-                                child: SizedBox(
-                                  width: 30,
-                                  height: 30,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.0,
-                                  ),
-                                ),
-                              );
-                            }
-                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                              return const Center(
-                                  child: Text('No users found'));
-                            }
-
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Container(
-                                width: MediaQuery.of(context).size.width,
-                                margin: const EdgeInsets.all(10),
-                                child: PaginatedDataTable(
-                                  rowsPerPage: 8,
-                                  availableRowsPerPage: const [8, 16, 24],
-                                  horizontalMargin: 10,
-                                  columns: const [
-                                    DataColumn(label: Text('Username')),
-                                    DataColumn(label: Text('Email')),
-                                    DataColumn(
-                                        label: Text('Preferred File Type')),
-                                    DataColumn(label: Text('Actions')),
-                                  ],
-                                  source: UsersDataSource(
-                                    users: snapshot.data!,
-                                    context: context,
-                                    onDelete: (user) async {
-                                      try {
-                                        await deleteUser(user);
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                  'User deleted successfully'),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        }
-                                      } catch (e) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                  'Error deleting user: $e'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xffF9F9F9),
+                border: Border.all(color: const Color(0xffC5C5C5)),
+                borderRadius: BorderRadius.circular(6),
               ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildUsersList(),
             ),
           ),
         ],
@@ -284,7 +209,79 @@ class _UsersViewState extends State<UsersView> {
     );
   }
 
+  Widget _buildUsersList() {
+    if (_filteredUsers.isEmpty) {
+      return const Center(child: Text('No users found'));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.858,
+        margin: const EdgeInsets.all(2),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            cardTheme: CardTheme(
+              elevation: 0,
+              color: const Color(0xffF9F9F9),
+              margin: EdgeInsets.zero,
+            ),
+            dataTableTheme: DataTableThemeData(
+              headingRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+              dataRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+            ),
+          ),
+          child: PaginatedDataTable(
+            rowsPerPage: 12,
+            availableRowsPerPage: const [8, 16, 24],
+            horizontalMargin: 10,
+            showFirstLastButtons: true,
+            arrowHeadColor: Colors.black,
+            header: null,
+            columns: const [
+              DataColumn(label: Text('Username')),
+              DataColumn(label: Text('Email')),
+              DataColumn(label: Text('Preferred File Type')),
+              DataColumn(label: Text('Actions')),
+            ],
+            source: UsersDataSource(
+              users: _filteredUsers,
+              context: context,
+              onDelete: (user) async {
+                final currentContext = context;
+                try {
+                  await deleteUser(user);
+                  await _loadUsers();
+
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('User deleted successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Error deleting user: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _sortUsers() async {
+    if (_isDisposed) return;
+
     setState(() {
       _filteredUsers.sort((a, b) {
         if (a == null || b == null) return 0;
@@ -304,6 +301,7 @@ class _UsersViewState extends State<UsersView> {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _searchController.dispose();
     super.dispose();
   }
@@ -361,7 +359,8 @@ class UsersDataSource extends DataTableSource {
           content: Text('Are you sure you want to delete "${user.name}"?'),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xff202020))),
               onPressed: () {
                 Navigator.of(context).pop();
               },

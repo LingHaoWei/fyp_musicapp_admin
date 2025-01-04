@@ -16,6 +16,8 @@ class _ImagesDataView extends State<ImagesView> {
   final TextEditingController _searchController = TextEditingController();
   List<StorageItem> _allImages = [];
   List<StorageItem> _filteredImages = [];
+  bool _isLoading = true;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -24,11 +26,28 @@ class _ImagesDataView extends State<ImagesView> {
   }
 
   Future<void> _loadImages() async {
-    final images = await listImagesFromS3();
+    if (_isDisposed) return;
+
     setState(() {
-      _allImages = images;
-      _filteredImages = images;
+      _isLoading = true;
     });
+
+    try {
+      final images = await listImagesFromS3();
+      if (_isDisposed) return;
+
+      setState(() {
+        _allImages = images;
+        _filteredImages = images;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (_isDisposed) return;
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint('Error loading images: $e');
+    }
   }
 
   Future<List<StorageItem>> listImagesFromS3() async {
@@ -92,7 +111,7 @@ class _ImagesDataView extends State<ImagesView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Images',
+            'Cover Images',
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -100,7 +119,7 @@ class _ImagesDataView extends State<ImagesView> {
           ),
           const SizedBox(height: 24),
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(11),
             decoration: BoxDecoration(
               color: const Color(0xffF9F9F9),
               border: Border.all(color: const Color(0xffC5C5C5)),
@@ -111,57 +130,14 @@ class _ImagesDataView extends State<ImagesView> {
           const SizedBox(height: 16),
           Expanded(
             child: Container(
-              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: const Color(0xffF9F9F9),
-                border: Border.all(
-                  color: const Color(0xffC5C5C5),
-                ),
-                borderRadius: const BorderRadius.all(
-                  Radius.circular(6.0),
-                ),
+                border: Border.all(color: const Color(0xffC5C5C5)),
+                borderRadius: BorderRadius.circular(6),
               ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Container(
-                  width: MediaQuery.of(context).size.width,
-                  margin: const EdgeInsets.all(10),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(
-                      cardTheme: CardTheme(
-                        elevation: 0,
-                        color: const Color(0xffF9F9F9),
-                        margin: const EdgeInsets.all(0),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(6.0),
-                        ),
-                      ),
-                    ),
-                    child: PaginatedDataTable(
-                      rowsPerPage: 8,
-                      availableRowsPerPage: const [8, 16, 24],
-                      horizontalMargin: 10,
-                      columns: const [
-                        DataColumn(label: Text('Name')),
-                        DataColumn(label: Text('Size')),
-                        DataColumn(label: Text('Actions')),
-                      ],
-                      source: S3ImagesDataSource(
-                        _filteredImages,
-                        context: context,
-                        deleteFilePublic: deleteFilePublic,
-                        onDelete: (item) async {
-                          try {
-                            await deleteFilePublic(item.path);
-                          } catch (e) {
-                            debugPrint('Error deleting image: $e');
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _buildImagesList(),
             ),
           ),
         ],
@@ -174,7 +150,7 @@ class _ImagesDataView extends State<ImagesView> {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         const Text(
-          'Image List',
+          'Cover Images List',
           style: TextStyle(fontSize: 15),
         ),
         Row(
@@ -187,8 +163,7 @@ class _ImagesDataView extends State<ImagesView> {
                   MaterialPageRoute(
                     builder: (context) => const ImageUploadManager(),
                   ),
-                ).then(
-                    (_) => _loadImages()); // Reload after returning from upload
+                ).then((_) => _loadImages());
               },
             ),
             const SizedBox(width: 16),
@@ -210,8 +185,79 @@ class _ImagesDataView extends State<ImagesView> {
     );
   }
 
+  Widget _buildImagesList() {
+    if (_filteredImages.isEmpty) {
+      return const Center(child: Text('No images found'));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.858,
+        margin: const EdgeInsets.all(2),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            cardTheme: CardTheme(
+              elevation: 0,
+              color: const Color(0xffF9F9F9),
+              margin: EdgeInsets.zero,
+            ),
+            dataTableTheme: DataTableThemeData(
+              headingRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+              dataRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+            ),
+          ),
+          child: PaginatedDataTable(
+            rowsPerPage: 12,
+            availableRowsPerPage: const [8, 16, 24],
+            horizontalMargin: 10,
+            showFirstLastButtons: true,
+            arrowHeadColor: Colors.black,
+            header: null,
+            columns: const [
+              DataColumn(label: Text('Name')),
+              DataColumn(label: Text('Size')),
+              DataColumn(label: Text('Actions')),
+            ],
+            source: S3ImagesDataSource(
+              _filteredImages,
+              context: context,
+              deleteFilePublic: deleteFilePublic,
+              onDelete: (item) async {
+                final currentContext = context;
+                try {
+                  await deleteFilePublic(item.path);
+                  await _loadImages();
+
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Image deleted successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Error deleting image: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   void dispose() {
+    _isDisposed = true;
     _searchController.dispose();
     super.dispose();
   }
@@ -324,7 +370,8 @@ class S3ImagesDataSource extends DataTableSource {
           ),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xff202020))),
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(

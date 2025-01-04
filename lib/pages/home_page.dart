@@ -48,7 +48,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
 
   final List<Widget> _pages = [
     SongsView(key: PageStorageKey('songs')),
-    ImagesView(key: PageStorageKey('images')),
+    ImagesView(key: PageStorageKey('covers')),
     UsersView(key: PageStorageKey('users')),
   ];
 
@@ -107,7 +107,7 @@ class _AdminHomePageState extends State<AdminHomePage> {
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.image),
-                  label: Text('Images'),
+                  label: Text('Cover'),
                 ),
                 NavigationRailDestination(
                   icon: Icon(Icons.people),

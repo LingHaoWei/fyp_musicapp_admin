@@ -50,6 +50,8 @@ class _SongsDataView extends State<SongsView> {
   List<Songs?> _filteredSongs = [];
   SortField _currentSortField = SortField.title;
   bool _isAscending = true;
+  bool _isLoading = true;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -58,9 +60,28 @@ class _SongsDataView extends State<SongsView> {
   }
 
   Future<void> _loadSongs() async {
-    _allSongs = await listSongs();
-    _filteredSongs = _allSongs;
-    setState(() {});
+    if (_isDisposed) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final songs = await listSongs();
+      if (_isDisposed) return;
+
+      setState(() {
+        _allSongs = songs;
+        _filteredSongs = songs;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (_isDisposed) return;
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint('Error loading songs: $e');
+    }
   }
 
   Future<List<Songs?>> listSongs() async {
@@ -135,176 +156,227 @@ class _SongsDataView extends State<SongsView> {
               ),
             ),
           ),
-          const SizedBox(
-            height: 24,
-          ),
+          const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: const Color(0xffF9F9F9),
-              border: Border.all(
-                color: const Color(0xffC5C5C5),
-              ),
-              borderRadius: const BorderRadius.all(
-                Radius.circular(6.0),
-              ),
+              border: Border.all(color: const Color(0xffC5C5C5)),
+              borderRadius: BorderRadius.circular(6),
             ),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                return _buildBar();
+            child: _buildBar(),
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: const Color(0xffF9F9F9),
+                border: Border.all(color: const Color(0xffC5C5C5)),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: _isLoading
+                  ? const Center(
+                      child: CircularProgressIndicator(),
+                    )
+                  : _buildSongsList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSongsList() {
+    if (_filteredSongs.isEmpty) {
+      return const Center(child: Text('No songs found'));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.858,
+        margin: const EdgeInsets.all(2),
+        child: Theme(
+          data: Theme.of(context).copyWith(
+            cardTheme: CardTheme(
+              elevation: 0,
+              color: const Color(0xffF9F9F9),
+              margin: EdgeInsets.zero,
+            ),
+            dataTableTheme: DataTableThemeData(
+              headingRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+              dataRowColor: WidgetStateProperty.all(const Color(0xffF9F9F9)),
+            ),
+          ),
+          child: PaginatedDataTable(
+            rowsPerPage: 12,
+            availableRowsPerPage: const [8, 16, 24],
+            horizontalMargin: 10,
+            showFirstLastButtons: true,
+            arrowHeadColor: Colors.black,
+            header: null,
+            columns: const [
+              DataColumn(label: Text('Title')),
+              DataColumn(label: Text('Artist')),
+              DataColumn(label: Text('Album')),
+              DataColumn(label: Text('Genre')),
+              DataColumn(label: Text('Duration')),
+              DataColumn(label: Text('File Type')),
+              DataColumn(label: Text('Actions')),
+            ],
+            source: SongsDataSource(
+              _filteredSongs,
+              context: context,
+              onDelete: (song) async {
+                final currentContext = context;
+                try {
+                  final fileName =
+                      "public/songs/${song.fileType}/${song.title}";
+                  await deleteFilePublic(fileName);
+                  await deleteSongs(song);
+                  await _loadSongs();
+
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      const SnackBar(
+                        content: Text('Song deleted successfully'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (currentContext.mounted) {
+                    ScaffoldMessenger.of(currentContext).showSnackBar(
+                      SnackBar(
+                        content: Text('Error deleting song: $e'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              onEdit: (song) async {
+                final formKey = GlobalKey<FormState>();
+                final artistController =
+                    TextEditingController(text: song.artist ?? '');
+                final albumController =
+                    TextEditingController(text: song.album ?? '');
+                final genreController =
+                    TextEditingController(text: song.genre ?? '');
+                final durationController = TextEditingController(
+                    text: formatDuration(song.duration ?? 0));
+                int currentDuration = song.duration ?? 0;
+
+                void showEditDialogWithDuration(int newDuration) {
+                  currentDuration = newDuration;
+                  _showEditDialog(song.copyWith(duration: newDuration));
+                }
+
+                try {
+                  await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: Text('Edit "${song.title}"'),
+                        content: Form(
+                          key: formKey,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                TextFormField(
+                                  controller: artistController,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Artist'),
+                                ),
+                                TextFormField(
+                                  controller: albumController,
+                                  decoration:
+                                      const InputDecoration(labelText: 'Album'),
+                                ),
+                                DropdownButtonFormField<String>(
+                                  value: genreController.text.isEmpty
+                                      ? 'Pop'
+                                      : genreController.text,
+                                  decoration:
+                                      const InputDecoration(labelText: 'Genre'),
+                                  items: musicGenres.map((String value) {
+                                    return DropdownMenuItem<String>(
+                                      value: value,
+                                      child: Text(value),
+                                    );
+                                  }).toList(),
+                                  onChanged: (String? newValue) {
+                                    if (newValue != null) {
+                                      genreController.text = newValue;
+                                    }
+                                  },
+                                ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: durationController,
+                                        decoration: const InputDecoration(
+                                            labelText: 'Duration'),
+                                        readOnly: true,
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.access_time),
+                                      onPressed: () async {
+                                        Navigator.of(context).pop();
+                                        final newDuration =
+                                            await _showDurationPicker(
+                                                currentDuration);
+                                        if (newDuration != null) {
+                                          showEditDialogWithDuration(
+                                              newDuration);
+                                        } else {
+                                          _showEditDialog(song);
+                                        }
+                                      },
+                                      tooltip: 'Pick duration',
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        actions: [
+                          TextButton(
+                            child: const Text('Cancel',
+                                style: TextStyle(color: Color(0xff202020))),
+                            onPressed: () => Navigator.of(context).pop(),
+                          ),
+                          TextButton(
+                            child: const Text('Save'),
+                            onPressed: () async {
+                              final updatedSong = song.copyWith(
+                                artist: artistController.text,
+                                album: albumController.text,
+                                genre: genreController.text,
+                                duration: currentDuration,
+                              );
+                              Navigator.of(context).pop();
+                              await _updateSong(updatedSong);
+                            },
+                          ),
+                        ],
+                      );
+                    },
+                  );
+                } finally {
+                  artistController.dispose();
+                  albumController.dispose();
+                  genreController.dispose();
+                  durationController.dispose();
+                }
               },
             ),
           ),
-          const SizedBox(
-            height: 16,
-          ),
-          Expanded(
-            child: SizedBox(
-              width: MediaQuery.of(context).size.width,
-              height: MediaQuery.of(context).size.height,
-              child: SingleChildScrollView(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xffF9F9F9),
-                    border: Border.all(
-                      color: const Color(0xffC5C5C5),
-                    ),
-                    borderRadius: const BorderRadius.all(
-                      Radius.circular(6.0),
-                    ),
-                  ),
-                  child: Theme(
-                      data: Theme.of(context).copyWith(
-                        cardTheme: CardTheme(
-                          elevation: 0,
-                          color: const Color(0xffF9F9F9),
-                          margin: const EdgeInsets.all(0),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6.0),
-                          ),
-                        ),
-                      ),
-                      child: Center(
-                          child: SizedBox(
-                        child: FutureBuilder<List<Songs?>>(
-                          future: Future.value(_filteredSongs),
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return Center(
-                                  child: Text('Error: ${snapshot.error}'));
-                            }
-                            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                              return const Center(
-                                  child: Text('No songs found'));
-                            }
-
-                            return SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Container(
-                                width: MediaQuery.of(context).size.width,
-                                margin: const EdgeInsets.all(10),
-                                child: PaginatedDataTable(
-                                  rowsPerPage: 8,
-                                  availableRowsPerPage: const [8, 16, 24],
-                                  horizontalMargin: 10,
-                                  columns: const [
-                                    DataColumn(label: Text('Title')),
-                                    DataColumn(label: Text('Artist')),
-                                    DataColumn(label: Text('Album')),
-                                    DataColumn(label: Text('Genre')),
-                                    DataColumn(label: Text('Duration')),
-                                    DataColumn(label: Text('File Type')),
-                                    DataColumn(
-                                      label: Text('Actions'),
-                                    ),
-                                  ],
-                                  source: SongsDataSource(
-                                    snapshot.data!,
-                                    context: context,
-                                    onDelete: (song) async {
-                                      final currentContext = context;
-                                      try {
-                                        final fileName =
-                                            "public/songs/${song.fileType}/${song.title}";
-                                        await deleteFilePublic(fileName);
-                                        await deleteSongs(song);
-                                        await _loadSongs();
-
-                                        if (currentContext.mounted) {
-                                          ScaffoldMessenger.of(currentContext)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                  'Song deleted successfully'),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        }
-                                      } catch (e) {
-                                        if (currentContext.mounted) {
-                                          ScaffoldMessenger.of(currentContext)
-                                              .showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                  'Error deleting song: $e'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                    onUpdate: (song) async {
-                                      final currentContext = context;
-                                      try {
-                                        final request =
-                                            ModelMutations.update(song);
-                                        final response = await Amplify.API
-                                            .mutate(request: request)
-                                            .response;
-
-                                        if (response.errors.isNotEmpty) {
-                                          throw Exception(
-                                              response.errors.first.message);
-                                        }
-
-                                        await _loadSongs();
-                                        setState(() {});
-
-                                        if (currentContext.mounted) {
-                                          ScaffoldMessenger.of(currentContext)
-                                              .showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                  'Song updated successfully'),
-                                              backgroundColor: Colors.green,
-                                            ),
-                                          );
-                                        }
-                                      } catch (e) {
-                                        if (currentContext.mounted) {
-                                          ScaffoldMessenger.of(currentContext)
-                                              .showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                  'Error updating song: $e'),
-                                              backgroundColor: Colors.red,
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                                  ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ))),
-                ),
-              ),
-            ),
-          )
-        ],
+        ),
       ),
     );
   }
@@ -414,87 +486,6 @@ class _SongsDataView extends State<SongsView> {
     });
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-}
-
-class SongsDataSource extends DataTableSource {
-  final List<Songs?> _songs;
-  final Function(Songs) onDelete;
-  final Function(Songs) onUpdate;
-  final BuildContext context;
-
-  SongsDataSource(
-    this._songs, {
-    required this.onDelete,
-    required this.onUpdate,
-    required this.context,
-  });
-
-  @override
-  DataRow? getRow(int index) {
-    if (index >= _songs.length) return null;
-    final song = _songs[index];
-    return DataRow(cells: [
-      DataCell(Text(song?.title ?? 'No title')),
-      DataCell(Text(song?.artist ?? 'Unknown artist')),
-      DataCell(Text(song?.album ?? 'No album')),
-      DataCell(Text(song?.genre ?? 'No genre')),
-      DataCell(Text(formatDuration(song?.duration ?? 0))),
-      DataCell(Text(song?.fileType ?? 'No file')),
-      DataCell(
-        SizedBox(
-          width: 250,
-          child: Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.edit),
-                onPressed: song == null ? null : () => _showEditDialog(song),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete),
-                onPressed: song == null ? null : () => _showDeleteDialog(song),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ]);
-  }
-
-  Future<void> _showDeleteDialog(Songs song) async {
-    return showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirm Delete'),
-          content: Text('Are you sure you want to delete "${song.title}"?'),
-          actions: [
-            TextButton(
-              child: const Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            TextButton(
-              child: const Text(
-                'Delete',
-                style: TextStyle(color: Colors.red),
-              ),
-              onPressed: () {
-                Navigator.of(context).pop();
-                onDelete(song);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Future<void> _showEditDialog(Songs song) async {
     final formKey = GlobalKey<FormState>();
     final artistController = TextEditingController(text: song.artist ?? '');
@@ -578,7 +569,8 @@ class SongsDataSource extends DataTableSource {
             ),
             actions: [
               TextButton(
-                child: const Text('Cancel'),
+                child: const Text('Cancel',
+                    style: TextStyle(color: Color(0xff202020))),
                 onPressed: () => Navigator.of(context).pop(),
               ),
               TextButton(
@@ -616,8 +608,7 @@ class SongsDataSource extends DataTableSource {
         throw Exception(response.errors.first.message);
       }
 
-      onUpdate(updatedSong);
-      notifyListeners();
+      await _loadSongs();
 
       if (currentContext.mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -728,7 +719,8 @@ class SongsDataSource extends DataTableSource {
           ),
           actions: [
             TextButton(
-              child: const Text('Cancel'),
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xff202020))),
               onPressed: () => Navigator.of(context).pop(),
             ),
             TextButton(
@@ -744,6 +736,84 @@ class SongsDataSource extends DataTableSource {
     );
 
     return result;
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _searchController.dispose();
+    super.dispose();
+  }
+}
+
+class SongsDataSource extends DataTableSource {
+  final List<Songs?> _songs;
+  final Function(Songs) onDelete;
+  final BuildContext context;
+  final Function(Songs) onEdit;
+
+  SongsDataSource(
+    this._songs, {
+    required this.onDelete,
+    required this.onEdit,
+    required this.context,
+  });
+
+  @override
+  DataRow? getRow(int index) {
+    if (index >= _songs.length) return null;
+    final song = _songs[index];
+    return DataRow(cells: [
+      DataCell(Text(song?.title ?? 'No title')),
+      DataCell(Text(song?.artist ?? 'Unknown artist')),
+      DataCell(Text(song?.album ?? 'No album')),
+      DataCell(Text(song?.genre ?? 'No genre')),
+      DataCell(Text(formatDuration(song?.duration ?? 0))),
+      DataCell(Text(song?.fileType ?? 'No file')),
+      DataCell(
+        SizedBox(
+          width: 250,
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.edit),
+                onPressed: song == null ? null : () => onEdit(song),
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete),
+                onPressed: song == null ? null : () => _showDeleteDialog(song),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  Future<void> _showDeleteDialog(Songs song) async {
+    return showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Confirm Delete'),
+          content: Text('Are you sure you want to delete "${song.title}"?'),
+          actions: [
+            TextButton(
+              child: const Text('Cancel',
+                  style: TextStyle(color: Color(0xff202020))),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            TextButton(
+              child: const Text('Delete'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                onDelete(song);
+              },
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
